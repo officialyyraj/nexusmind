@@ -15,6 +15,7 @@ from app.api.v1.sandbox import router as sandbox_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.auth.routes import router as auth_router
+from app.tools.browser.api import router as browser_router
 from app.config import get_settings
 from app.utils.logger import get_logger, set_request_id, setup_logging
 
@@ -95,6 +96,7 @@ def create_app() -> FastAPI:
     app.include_router(memory_router, prefix=f"{api_prefix}/memory")
     app.include_router(plugins_router, prefix=f"{api_prefix}/plugins")
     app.include_router(webhooks_router, prefix=f"{api_prefix}/webhooks")
+    app.include_router(browser_router)
 
     # Health check endpoint
     @app.get("/health", tags=["health"])

@@ -403,8 +403,18 @@ nexusmind/
 - Summarization for results
 - Integration with ResearchAgent
 
+### Phase 12 ✅ - Browser Automation
+- BrowserTool using Playwright
+- Support for Chromium, Firefox, WebKit
+- Page navigation and interaction
+- Screenshot capture
+- JavaScript execution
+- Console log collection
+- File upload/download
+- REST API endpoints
+- Integration testing
+
 ### Future Phases
-- **Phase 12**: Browser Automation
 - **Phase 13**: CI/CD Pipeline
 - **Phase 14**: Frontend (Next.js)
 - **Phase 15**: Production Deployment

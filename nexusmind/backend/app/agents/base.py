@@ -4,7 +4,7 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Any, TypedDict
 
-from app.agents.types import AgentType, get_agent_capabilities
+from app.agents.types import AgentType, get_agent_capabilities  # noqa: E402
 
 
 class AgentState(TypedDict):

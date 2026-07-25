@@ -284,7 +284,7 @@ class ModelRouter:
         """
         if model.latency_ms:
             return model.latency_ms
-        
+
         # Estimate based on model type and token count
         base_latency = {
             ModelCapability.FAST: 500,
@@ -292,12 +292,12 @@ class ModelRouter:
             ModelCapability.REASONING: 2000,
             ModelCapability.LARGE_CONTEXT: 3000,
         }
-        
+
         for cap in model.capabilities:
             if cap in base_latency:
                 # Add per-token latency
                 return base_latency[cap] + (output_tokens * 0.5)
-        
+
         return 2000 + (output_tokens * 0.5)
 
     def score_model(
@@ -317,26 +317,26 @@ class ModelRouter:
             Score (higher is better)
         """
         score = 0.0
-        
+
         # Capability match (most important)
         capability_score = 0.0
         for cap in rule.preferred_capabilities:
             if cap in model.capabilities:
                 capability_score += 2.0
-        
+
         # Also check fallback capabilities
         for cap in rule.fallback_capabilities:
             if cap in model.capabilities:
                 capability_score += 1.0
-        
+
         score += capability_score * 10
-        
+
         # Context length check
         if model.context_length >= request.estimated_input_tokens:
             score += 5.0
         elif model.context_length < request.estimated_input_tokens:
             return -1.0  # Cannot handle request
-        
+
         # Cost factor
         if request.prefer_low_cost or rule.max_cost_per_request:
             estimated_cost = self.estimate_cost(
@@ -347,7 +347,7 @@ class ModelRouter:
             if rule.max_cost_per_request and estimated_cost > rule.max_cost_per_request:
                 return -1.0
             score += max(0, 10 - estimated_cost * 100)
-        
+
         # Latency factor
         if request.prefer_low_latency or rule.max_latency_ms:
             estimated_latency = self.estimate_latency(
@@ -359,11 +359,11 @@ class ModelRouter:
                 if rule.max_latency_ms and estimated_latency > rule.max_latency_ms:
                     return -1.0
                 score += max(0, 10 - estimated_latency / 500)
-        
+
         # Provider availability bonus
         if model.provider == ProviderType.OLLAMA:
             score += 2.0  # Local = faster, free
-        
+
         return score
 
     def route(self, request: RouteRequest) -> RouteResult:
@@ -376,14 +376,14 @@ class ModelRouter:
             Route result with selected model
         """
         rule = self.get_task_rule(request.task_type)
-        
+
         # Score all available models
         scored_models = []
         for model in self.get_available_models():
             score = self.score_model(model, request, rule or RoutingRule(task_type=request.task_type))
             if score >= 0:
                 scored_models.append((score, model))
-        
+
         if not scored_models:
             # Fallback to any available model
             if self.config.enable_fallback and self.get_available_models():
@@ -404,23 +404,23 @@ class ModelRouter:
                     ),
                 )
             raise ValueError("No models available")
-        
+
         # Sort by score (descending)
         scored_models.sort(key=lambda x: x[0], reverse=True)
-        
+
         # Get best model
         best_score, best_model = scored_models[0]
-        
+
         # Get alternatives
         alternatives = [m for _, m in scored_models[1:4]]
-        
+
         # Build reasoning
         reasoning = f"Selected {best_model.display_name} for {request.task_type.value} task"
         if rule:
             matching_caps = [c.value for c in rule.preferred_capabilities if c in best_model.capabilities]
             if matching_caps:
                 reasoning += f". Matches capabilities: {', '.join(matching_caps)}"
-        
+
         return RouteResult(
             selected_model=best_model,
             provider=best_model.provider.value,
@@ -455,13 +455,13 @@ class ModelRouter:
             Route result
         """
         task_type = AGENT_TO_TASK.get(agent_type, TaskType.GENERAL)
-        
+
         request = RouteRequest(
             task_type=task_type,
             estimated_input_tokens=estimated_input_tokens,
             estimated_output_tokens=estimated_output_tokens,
         )
-        
+
         return self.route(request)
 
     def update_model_latency(self, model_name: str, latency_ms: float) -> None:
@@ -475,12 +475,12 @@ class ModelRouter:
             if model.name == model_name:
                 model.latency_ms = latency_ms
                 break
-        
+
         # Update request times for metrics
         if model_name not in self._request_times:
             self._request_times[model_name] = []
         self._request_times[model_name].append(latency_ms)
-        
+
         # Keep only last 100 measurements
         self._request_times[model_name] = self._request_times[model_name][-100:]
 
@@ -489,14 +489,14 @@ class ModelRouter:
         self._metrics.total_requests = sum(
             count for count in self._metrics.requests_by_model.values()
         )
-        
+
         # Calculate average latency
         all_latencies = []
         for latencies in self._request_times.values():
             all_latencies.extend(latencies)
         if all_latencies:
             self._metrics.average_latency_ms = sum(all_latencies) / len(all_latencies)
-        
+
         return self._metrics
 
     def record_request(
@@ -516,12 +516,12 @@ class ModelRouter:
         """
         # Update model latency
         self.update_model_latency(model_name, latency_ms)
-        
+
         # Update metrics
         task_key = task_type.value
         self._metrics.requests_by_task[task_key] = self._metrics.requests_by_task.get(task_key, 0) + 1
         self._metrics.requests_by_model[model_name] = self._metrics.requests_by_model.get(model_name, 0) + 1
-        
+
         self._metrics.total_cost += cost
         self._metrics.average_cost = self._metrics.total_cost / max(
             1, sum(self._metrics.requests_by_model.values())

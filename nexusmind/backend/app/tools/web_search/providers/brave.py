@@ -31,27 +31,27 @@ class BraveProvider:
             Search response
         """
         start_time = time.time()
-        
+
         headers = {
             "X-Subscription-Token": self.api_key,
             "Accept": "application/json",
         }
-        
+
         params = {
             "q": request.query,
             "count": min(request.max_results, 20),  # Brave max is 20
         }
-        
+
         url = f"{self.BASE_URL}?{urlencode(params)}"
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(url, headers=headers)
             response.raise_for_status()
             data = response.json()
-        
+
         results = []
         web_results = data.get("web", {}).get("results", [])
-        
+
         for item in web_results[:request.max_results]:
             results.append(SearchResult(
                 title=item.get("title", ""),
@@ -61,9 +61,9 @@ class BraveProvider:
                 published_date=item.get("age"),
                 provider=SearchProvider.BRAVE,
             ))
-        
+
         execution_time = time.time() - start_time
-        
+
         return SearchResponse(
             query=request.query,
             results=results,

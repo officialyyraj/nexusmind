@@ -112,10 +112,10 @@ class PlannerAgent(BaseAgent):
         """
         # Analyze task type from context
         task_type = context.get("task_type", self._infer_task_type(task))
-        
+
         # Generate steps based on task type
         steps = self._generate_steps(task, task_type)
-        
+
         # Create plan
         plan = TaskPlan(
             task=task,
@@ -126,7 +126,7 @@ class PlannerAgent(BaseAgent):
                 "estimated_total_time": self._estimate_total_time(steps),
             },
         )
-        
+
         return plan
 
     def _infer_task_type(self, task: str) -> str:
@@ -148,7 +148,7 @@ class PlannerAgent(BaseAgent):
     def _generate_steps(self, task: str, task_type: str) -> list[TaskStep]:
         """Generate steps based on task type."""
         steps = []
-        
+
         if task_type == "implementation":
             steps = [
                 TaskStep(
@@ -293,7 +293,7 @@ class PlannerAgent(BaseAgent):
                     priority=9,
                 ),
             ]
-        
+
         return steps
 
     def _estimate_total_time(self, steps: list[TaskStep]) -> str:
@@ -318,7 +318,7 @@ class ResearcherAgent(BaseAgent):
         """Execute research task."""
         task = state.get("task", "")
         context = state.get("context", {})
-        
+
         # Get the current step from plan if available
         current_step = context.get("current_step")
         if current_step:
@@ -346,20 +346,20 @@ class ResearcherAgent(BaseAgent):
     async def research(self, task: str, context: dict[str, Any]) -> list[dict[str, Any]]:
         """Perform research and return structured findings."""
         findings = []
-        
+
         # Try web search if service is available
         if self._search_service:
             try:
                 from app.tools.web_search.schemas import SearchRequest, SearchProvider
-                
+
                 request = SearchRequest(
                     query=task,
                     provider=SearchProvider.DUCKDUCKGO,  # Default to free provider
                     max_results=5,
                 )
-                
+
                 response = await self._search_service.search(request)
-                
+
                 for result in response.results:
                     findings.append({
                         "id": str(uuid.uuid4()),
@@ -374,7 +374,7 @@ class ResearcherAgent(BaseAgent):
                             "url": result.url,
                         },
                     })
-                
+
                 # Add summary
                 if response.results:
                     summary = await self._search_service.summarize_results(response)
@@ -387,13 +387,13 @@ class ResearcherAgent(BaseAgent):
                         "confidence": 0.9,
                         "metadata": {},
                     })
-                    
-            except Exception as e:
+
+            except Exception:
                 # Fallback to mock data if search fails
                 findings.extend(self._get_mock_findings(task))
         else:
             findings.extend(self._get_mock_findings(task))
-        
+
         return findings
 
     def _get_mock_findings(self, task: str) -> list[dict[str, Any]]:
@@ -421,11 +421,11 @@ class ResearcherAgent(BaseAgent):
         """Analyze and summarize research findings."""
         if not findings:
             return {"summary": "No findings", "confidence": 0}
-        
+
         avg_confidence = sum(f.get("confidence", 0) for f in findings) / len(findings)
         sources = list(set(f.get("source", "unknown") for f in findings))
         source_types = list(set(f.get("source_type", "unknown") for f in findings))
-        
+
         return {
             "summary": f"Found {len(findings)} relevant items from {len(sources)} sources",
             "confidence": avg_confidence,
@@ -469,11 +469,11 @@ class CoderAgent(BaseAgent):
     async def write_code(self, task: str, context: dict[str, Any]) -> dict[str, Any]:
         """Write code based on task and context."""
         language = context.get("language", "python")
-        
+
         # Generate code based on task
         code = self._generate_code(task, language, context)
         files = self._create_file_structure(task, language, code)
-        
+
         return {
             "files": files,
             "code": code,
@@ -606,7 +606,7 @@ export {{ Implementation }};
         }
         ext = extensions.get(language, "txt")
         filename = f"implementation.{ext}"
-        
+
         return [
             {
                 "name": filename,

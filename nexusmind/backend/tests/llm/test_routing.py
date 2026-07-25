@@ -134,7 +134,7 @@ class TestModelRouter:
             cost_per_1k_input=0.005,
             cost_per_1k_output=0.015,
         )
-        
+
         cost = router.estimate_cost(model, 1000, 500)
         assert cost == 0.005 + 0.0075  # $0.0125
 
@@ -148,7 +148,7 @@ class TestModelRouter:
             cost_per_1k_input=0.0,
             cost_per_1k_output=0.0,
         )
-        
+
         cost = router.estimate_cost(model, 1000, 500)
         assert cost == 0.0
 
@@ -160,7 +160,7 @@ class TestModelRouter:
             estimated_input_tokens=1000,
             estimated_output_tokens=500,
         )
-        
+
         result = router.route(request)
         assert result.selected_model is not None
         assert result.provider is not None
@@ -175,7 +175,7 @@ class TestModelRouter:
             estimated_input_tokens=50000,
             estimated_output_tokens=2000,
         )
-        
+
         result = router.route(request)
         assert result.selected_model is not None
         assert result.selected_model.context_length >= 50000
@@ -189,7 +189,7 @@ class TestModelRouter:
             estimated_output_tokens=200,
             prefer_low_cost=True,
         )
-        
+
         result = router.route(request)
         assert result.selected_model is not None
         # Documentation should prefer cheaper models
@@ -199,13 +199,13 @@ class TestModelRouter:
         """Test routing with fallback."""
         router = ModelRouter()
         router.config.enable_fallback = True
-        
+
         request = RouteRequest(
             task_type=TaskType.PLANNING,
             estimated_input_tokens=100,
             estimated_output_tokens=100,
         )
-        
+
         result = router.route(request)
         assert result.selected_model is not None
         assert len(result.alternatives) >= 0
@@ -213,10 +213,10 @@ class TestModelRouter:
     def test_route_for_agent_planner(self):
         """Test routing for planner agent."""
         from app.agents.types import AgentType
-        
+
         router = ModelRouter()
         result = router.route_for_agent(AgentType.PLANNER)
-        
+
         assert result.selected_model is not None
         # Planner should use reasoning model
         assert ModelCapability.REASONING in result.selected_model.capabilities
@@ -224,10 +224,10 @@ class TestModelRouter:
     def test_route_for_agent_coder(self):
         """Test routing for coder agent."""
         from app.agents.types import AgentType
-        
+
         router = ModelRouter()
         result = router.route_for_agent(AgentType.CODER)
-        
+
         assert result.selected_model is not None
         # Coder should prefer coding-capable model
         caps = result.selected_model.capabilities
@@ -236,10 +236,10 @@ class TestModelRouter:
     def test_route_for_agent_researcher(self):
         """Test routing for researcher agent."""
         from app.agents.types import AgentType
-        
+
         router = ModelRouter()
         result = router.route_for_agent(AgentType.RESEARCHER)
-        
+
         assert result.selected_model is not None
         # Researcher should prefer large context
         assert result.selected_model.context_length >= 32000
@@ -300,14 +300,14 @@ class TestRoutingIntegration:
         """Test metrics recording."""
         router = ModelRouter()
         initial_metrics = router.get_metrics()
-        
+
         router.record_request(
             model_name="gpt-4o",
             task_type=TaskType.CODING,
             latency_ms=1000.0,
             cost=0.01,
         )
-        
+
         metrics = router.get_metrics()
         assert metrics.total_requests >= initial_metrics.total_requests
 
@@ -315,13 +315,13 @@ class TestRoutingIntegration:
         """Test model latency update."""
         router = ModelRouter()
         router.update_model_latency("gpt-4o", 500.0)
-        
+
         model = None
         for m in router.config.models:
             if m.name == "gpt-4o":
                 model = m
                 break
-        
+
         assert model is not None
         assert model.latency_ms == 500.0
 
@@ -332,7 +332,7 @@ class TestConfig:
     def test_parse_config_data(self):
         """Test parsing config data."""
         from app.llm.routing.config import parse_config_data
-        
+
         data = {
             "models": [
                 {
@@ -350,7 +350,7 @@ class TestConfig:
                 }
             ],
         }
-        
+
         config = parse_config_data(data)
         assert len(config.models) == 1
         assert config.models[0].name == "test-model"
@@ -360,7 +360,7 @@ class TestConfig:
         """Test example config is valid YAML."""
         from app.llm.routing.config import EXAMPLE_CONFIG
         import yaml
-        
+
         data = yaml.safe_load(EXAMPLE_CONFIG)
         assert "models" in data
         assert "routing_rules" in data

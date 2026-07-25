@@ -55,15 +55,15 @@ async def list_plugins(
         List of plugins
     """
     manager = get_manager()
-    
+
     plugins = manager.get_all_plugins()
-    
+
     if enabled_only:
         plugins = [p for p in plugins if p.status == PluginStatus.ENABLED]
-    
+
     if plugin_type:
         plugins = [p for p in plugins if p.manifest.metadata.plugin_type == plugin_type]
-    
+
     return plugins
 
 
@@ -79,10 +79,10 @@ async def get_plugin(plugin_id: str) -> PluginInfo:
     """
     manager = get_manager()
     plugin = manager.get_plugin(plugin_id)
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="Plugin not found")
-    
+
     return plugin
 
 
@@ -97,7 +97,7 @@ async def load_plugin(plugin_id: str) -> PluginInfo:
         Updated plugin info
     """
     manager = get_manager()
-    
+
     try:
         return await manager.load_plugin(plugin_id)
     except PluginError as e:
@@ -115,7 +115,7 @@ async def unload_plugin(plugin_id: str) -> dict[str, Any]:
         Success status
     """
     manager = get_manager()
-    
+
     try:
         await manager.unload_plugin(plugin_id)
         return {"status": "unloaded"}
@@ -134,7 +134,7 @@ async def enable_plugin(plugin_id: str) -> PluginInfo:
         Updated plugin info
     """
     manager = get_manager()
-    
+
     try:
         return await manager.enable_plugin(plugin_id)
     except (PluginError, DependencyError) as e:
@@ -152,7 +152,7 @@ async def disable_plugin(plugin_id: str) -> PluginInfo:
         Updated plugin info
     """
     manager = get_manager()
-    
+
     try:
         return await manager.disable_plugin(plugin_id)
     except PluginError as e:
@@ -170,7 +170,7 @@ async def reload_plugin(plugin_id: str) -> PluginInfo:
         Updated plugin info
     """
     manager = get_manager()
-    
+
     try:
         return await manager.reload_plugin(plugin_id)
     except PluginError as e:
@@ -188,7 +188,7 @@ async def uninstall_plugin(plugin_id: str) -> dict[str, Any]:
         Success status
     """
     manager = get_manager()
-    
+
     try:
         await manager.uninstall_plugin(plugin_id)
         return {"status": "uninstalled"}
@@ -210,14 +210,14 @@ async def health_check(plugin_id: str) -> PluginHealth:
     """
     manager = get_manager()
     plugin = manager.get_plugin(plugin_id)
-    
+
     if not plugin:
         raise HTTPException(status_code=404, detail="Plugin not found")
-    
+
     instance = manager._instances.get(plugin_id)
     if not instance:
         return PluginHealth(healthy=False, message="No instance")
-    
+
     try:
         return await instance.health_check()
     except Exception as e:
@@ -235,11 +235,11 @@ async def get_exports(plugin_id: str) -> PluginExport:
         Plugin exports
     """
     manager = get_manager()
-    
+
     exports = manager.get_exports(plugin_id)
     if not exports:
         raise HTTPException(status_code=404, detail="Plugin not found or no exports")
-    
+
     return exports
 
 
@@ -286,9 +286,9 @@ async def search_marketplace(
         Search results
     """
     marketplace = get_mp()
-    
+
     tag_list = tags.split(",") if tags else None
-    
+
     try:
         return await marketplace.search(
             query=query,
@@ -308,7 +308,7 @@ async def get_featured() -> list[MarketplaceListing]:
         Featured plugins
     """
     marketplace = get_mp()
-    
+
     try:
         return await marketplace.get_featured()
     except Exception as e:
@@ -331,14 +331,14 @@ async def install_from_marketplace(
     """
     marketplace = get_mp()
     manager = get_manager()
-    
+
     try:
         # Download plugin
         result = await marketplace.download_plugin(plugin_id, version)
-        
+
         # Load plugin
         await manager.load_from_directory(result["directory"])
-        
+
         return {
             "status": "installed",
             "plugin_id": plugin_id,
@@ -374,13 +374,13 @@ async def register_plugin(manifest: dict[str, Any]) -> dict[str, Any]:
         Registration result
     """
     manager = get_manager()
-    
+
     try:
         plugin_manifest = PluginManifest(**manifest)
         plugin_id = plugin_manifest.metadata.id
-        
+
         manager.register_plugin(plugin_manifest, None)
-        
+
         return {"status": "registered", "plugin_id": plugin_id}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

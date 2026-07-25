@@ -126,28 +126,28 @@ class AdvancedWorkflowState(AgentState):
 
 def create_phase_node(phase_type: PhaseType, agent_type: AgentType):
     """Create a node function for a phase."""
-    
+
     async def node(state: AdvancedWorkflowState) -> AdvancedWorkflowState:
         phase_key = phase_type.value
-        
+
         # Initialize phase result
         if "phase_results" not in state:
             state["phase_results"] = {}
-        
+
         state["phase_results"][phase_key] = PhaseResult(
             phase=phase_type,
             status=TaskStatus.RUNNING,
             started_at=datetime.utcnow(),
         )
-        
+
         # Update progress
         if "progress" in state:
             state["progress"]["current_phase"] = phase_type.value
-        
+
         try:
             agent = create_agent(agent_type, session_id=state.get("session_id"))
             result_state = await agent.execute(state)
-            
+
             # Extract result
             phase_result = PhaseResult(
                 phase=phase_type,
@@ -158,21 +158,21 @@ def create_phase_node(phase_type: PhaseType, agent_type: AgentType):
             phase_result.duration = (
                 phase_result.completed_at - phase_result.started_at
             ).total_seconds() if phase_result.started_at else 0
-            
+
             state["phase_results"][phase_key] = phase_result
-            
+
             # Update progress
             if "progress" in state:
                 state["progress"]["completed_phases"] += 1
-            
+
             # Merge result state
             state.update(result_state)
-            
+
         except Exception as e:
             # Handle failure
             retry_count = state.get("retry_counts", {}).get(phase_key, 0)
             state["retry_counts"][phase_key] = retry_count
-            
+
             phase_result = PhaseResult(
                 phase=phase_type,
                 status=TaskStatus.FAILED,
@@ -183,53 +183,53 @@ def create_phase_node(phase_type: PhaseType, agent_type: AgentType):
             phase_result.duration = (
                 phase_result.completed_at - phase_result.started_at
             ).total_seconds() if phase_result.started_at else 0
-            
+
             state["phase_results"][phase_key] = phase_result
             state["failed_phases"].append(phase_key)
-            
+
             if "errors" not in state:
                 state["errors"] = []
             state["errors"].append(f"{phase_key}: {str(e)}")
-        
+
         state["current_agent"] = phase_type.value
         return state
-    
+
     return node
 
 
 def create_parallel_phase_node(phase_types: list[PhaseType], agent_type: AgentType):
     """Create a node that executes multiple phases in parallel."""
-    
+
     async def node(state: AdvancedWorkflowState) -> AdvancedWorkflowState:
         if "phase_results" not in state:
             state["phase_results"] = {}
-        
+
         # Run phases in parallel
         tasks = []
         for phase_type in phase_types:
             phase_key = phase_type.value
-            
+
             state["phase_results"][phase_key] = PhaseResult(
                 phase=phase_type,
                 status=TaskStatus.RUNNING,
                 started_at=datetime.utcnow(),
             )
-            
+
             # Set current step context
             state["context"]["current_phase"] = phase_key
-            
+
             # Create agent task
             agent = create_agent(agent_type, session_id=state.get("session_id"))
             tasks.append(_execute_phase(phase_type, agent, state))
-        
+
         # Execute all phases in parallel
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Process results
         for i, result in enumerate(results):
             phase_type = phase_types[i]
             phase_key = phase_type.value
-            
+
             if isinstance(result, Exception):
                 phase_result = PhaseResult(
                     phase=phase_type,
@@ -243,20 +243,20 @@ def create_parallel_phase_node(phase_types: list[PhaseType], agent_type: AgentTy
                 state["errors"].append(f"{phase_key}: {str(result)}")
             else:
                 phase_result = result
-            
+
             phase_result.duration = (
                 phase_result.completed_at - phase_result.started_at
             ).total_seconds() if phase_result.started_at else 0
-            
+
             state["phase_results"][phase_key] = phase_result
-        
+
         # Update progress
         if "progress" in state:
             state["progress"]["completed_phases"] += len(phase_types)
-        
+
         state["current_agent"] = "parallel"
         return state
-    
+
     return node
 
 
@@ -268,16 +268,16 @@ async def _execute_phase(
     """Execute a single phase with the agent."""
     try:
         result_state = await agent.execute(state)
-        
+
         phase_result = PhaseResult(
             phase=phase_type,
             status=TaskStatus.COMPLETED,
             result=result_state.get("result", {}),
             completed_at=datetime.utcnow(),
         )
-        
+
         return phase_result
-        
+
     except Exception as e:
         return PhaseResult(
             phase=phase_type,
@@ -291,7 +291,7 @@ def create_advanced_workflow(
     include_phases: list[PhaseType] | None = None,
 ) -> StateGraph:
     """Create the advanced workflow graph with parallel execution and dependencies.
-    
+
     Workflow structure:
         Planner
            ↓
@@ -318,9 +318,9 @@ def create_advanced_workflow(
             PhaseType.TEST,
             PhaseType.MANAGER,
         ]
-    
+
     workflow = StateGraph(AdvancedWorkflowState)
-    
+
     # Phase to agent type mapping
     phase_to_agent = {
         PhaseType.PLANNING: AgentType.PLANNER,
@@ -333,14 +333,14 @@ def create_advanced_workflow(
         PhaseType.TEST: AgentType.TESTER,
         PhaseType.MANAGER: AgentType.MANAGER,
     }
-    
+
     # Add planning phase (always first)
     if PhaseType.PLANNING in include_phases:
         workflow.add_node(
             PhaseType.PLANNING.value,
             create_phase_node(PhaseType.PLANNING, AgentType.PLANNER),
         )
-    
+
     # Define parallel phases
     parallel_phases = [
         PhaseType.RESEARCH,
@@ -349,7 +349,7 @@ def create_advanced_workflow(
         PhaseType.DATABASE,
         PhaseType.DOCUMENTATION,
     ]
-    
+
     # Add parallel phases
     active_parallel = [p for p in parallel_phases if p in include_phases]
     if active_parallel:
@@ -357,31 +357,31 @@ def create_advanced_workflow(
             "parallel_execution",
             create_parallel_phase_node(active_parallel, AgentType.CODER),
         )
-    
+
     # Add review phase
     if PhaseType.REVIEW in include_phases:
         workflow.add_node(
             PhaseType.REVIEW.value,
             create_phase_node(PhaseType.REVIEW, AgentType.REVIEWER),
         )
-    
+
     # Add test phase
     if PhaseType.TEST in include_phases:
         workflow.add_node(
             PhaseType.TEST.value,
             create_phase_node(PhaseType.TEST, AgentType.TESTER),
         )
-    
+
     # Add manager phase (always last)
     if PhaseType.MANAGER in include_phases:
         workflow.add_node(
             PhaseType.MANAGER.value,
             create_phase_node(PhaseType.MANAGER, AgentType.MANAGER),
         )
-    
+
     # Set entry point
     workflow.set_entry_point(PhaseType.PLANNING.value)
-    
+
     # Connect phases
     if PhaseType.PLANNING in include_phases:
         if active_parallel:
@@ -392,7 +392,7 @@ def create_advanced_workflow(
             workflow.add_edge(PhaseType.PLANNING.value, PhaseType.TEST.value)
         elif PhaseType.MANAGER in include_phases:
             workflow.add_edge(PhaseType.PLANNING.value, PhaseType.MANAGER.value)
-    
+
     # Connect parallel to review
     if active_parallel:
         if PhaseType.REVIEW in include_phases:
@@ -401,17 +401,17 @@ def create_advanced_workflow(
             workflow.add_edge("parallel_execution", PhaseType.TEST.value)
         elif PhaseType.MANAGER in include_phases:
             workflow.add_edge("parallel_execution", PhaseType.MANAGER.value)
-    
+
     # Connect review to test
     if PhaseType.REVIEW in include_phases and PhaseType.TEST in include_phases:
         workflow.add_edge(PhaseType.REVIEW.value, PhaseType.TEST.value)
     elif PhaseType.REVIEW in include_phases and PhaseType.MANAGER in include_phases:
         workflow.add_edge(PhaseType.REVIEW.value, PhaseType.MANAGER.value)
-    
+
     # Connect test to manager
     if PhaseType.TEST in include_phases and PhaseType.MANAGER in include_phases:
         workflow.add_edge(PhaseType.TEST.value, PhaseType.MANAGER.value)
-    
+
     # End at manager or last phase
     if PhaseType.MANAGER in include_phases:
         workflow.add_edge(PhaseType.MANAGER.value, END)
@@ -423,7 +423,7 @@ def create_advanced_workflow(
         workflow.add_edge("parallel_execution", END)
     elif PhaseType.PLANNING in include_phases:
         workflow.add_edge(PhaseType.PLANNING.value, END)
-    
+
     return workflow.compile()
 
 
@@ -452,19 +452,19 @@ class AdvancedAgentWorkflow:
         dependencies: dict[str, list[str]] | None = None,
     ) -> tuple[AdvancedWorkflowState, WorkflowProgress]:
         """Run the advanced workflow for a task.
-        
+
         Args:
             task: Task description
             session_id: Session ID
             context: Additional context
             priorities: Task priorities (higher = more important)
             dependencies: Task dependencies
-            
+
         Returns:
             Tuple of (result state, workflow progress)
         """
         workflow_id = str(uuid.uuid4())
-        
+
         # Create initial state
         initial_state: AdvancedWorkflowState = {
             "session_id": session_id,
@@ -488,7 +488,7 @@ class AdvancedAgentWorkflow:
             "failed_phases": [],
             "retry_counts": {},
         }
-        
+
         # Track progress
         progress = WorkflowProgress(
             workflow_id=workflow_id,
@@ -496,20 +496,20 @@ class AdvancedAgentWorkflow:
             total_phases=initial_state["progress"]["total_phases"],
         )
         self._active_workflows[workflow_id] = progress
-        
+
         try:
             result = await self.workflow.ainvoke(initial_state)
-            
+
             # Update progress with results
             for phase, phase_result in result.get("phase_results", {}).items():
                 progress.phase_results[PhaseType(phase)] = phase_result
-            
+
             progress.completed_phases = result.get("progress", {}).get("completed_phases", 0)
             progress.completed_at = datetime.utcnow()
             progress.errors = result.get("errors", [])
-            
+
             return result, progress
-            
+
         finally:
             # Cleanup
             self._active_workflows.pop(workflow_id, None)
@@ -521,20 +521,20 @@ class AdvancedAgentWorkflow:
         context: dict[str, Any] | None = None,
     ) -> tuple[AdvancedWorkflowState, WorkflowProgress]:
         """Run workflow with automatic failure recovery.
-        
+
         Retries failed phases up to max_retries times.
         """
         last_error = None
-        
+
         for attempt in range(self.max_retries + 1):
             try:
                 result, progress = await self.run(task, session_id, context)
-                
+
                 # Check if any phases failed
                 failed = progress.get_failed_phases()
                 if not failed:
                     return result, progress
-                
+
                 # If this is not the last attempt, retry failed phases
                 if attempt < self.max_retries:
                     last_error = f"Attempt {attempt + 1}: Failed phases: {[p.value for p in failed]}"
@@ -543,15 +543,15 @@ class AdvancedAgentWorkflow:
                     context["retry_attempt"] = attempt + 1
                     context["failed_phases"] = [p.value for p in failed]
                     continue
-                
+
                 return result, progress
-                
+
             except Exception as e:
                 last_error = str(e)
                 if attempt < self.max_retries:
                     await asyncio.sleep(self.retry_delay * (2 ** attempt))
                     continue
-        
+
         # All retries failed
         return {
             "error": last_error or "Workflow failed after all retries",
@@ -585,11 +585,11 @@ class ParallelTaskExecutor:
         dependencies: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Execute tasks in parallel with dependency management.
-        
+
         Args:
             tasks: List of task dicts with 'id' and 'func' keys
             dependencies: Map of task_id to list of dependent task_ids
-            
+
         Returns:
             Dict of task_id to result
         """
@@ -597,7 +597,7 @@ class ParallelTaskExecutor:
         results: dict[str, Any] = {}
         completed: set[str] = set()
         pending = {task["id"]: task for task in tasks}
-        
+
         async def run_task(task_id: str, func: Callable) -> tuple[str, Any]:
             async with self._semaphore:
                 # Wait for dependencies
@@ -608,7 +608,7 @@ class ParallelTaskExecutor:
                             await asyncio.sleep(0.1)
                         else:
                             break
-                
+
                 try:
                     result = await func()
                     completed.add(task_id)
@@ -616,17 +616,17 @@ class ParallelTaskExecutor:
                 except Exception as e:
                     completed.add(task_id)
                     return task_id, {"error": str(e)}
-        
+
         # Create all tasks
         task_coroutines = [
             run_task(task["id"], task["func"])
             for task in tasks
             if task["id"] in pending
         ]
-        
+
         # Execute all tasks
         task_results = await asyncio.gather(*task_coroutines, return_exceptions=True)
-        
+
         # Collect results
         for i, result in enumerate(task_results):
             task_id = tasks[i]["id"]
@@ -635,7 +635,7 @@ class ParallelTaskExecutor:
             else:
                 task_key, task_result = result
                 results[task_key] = task_result
-        
+
         return results
 
 

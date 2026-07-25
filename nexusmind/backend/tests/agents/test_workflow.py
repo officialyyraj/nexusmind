@@ -31,9 +31,9 @@ class TestTaskPlan:
             estimated_duration="5 min",
             priority=5,
         )
-        
+
         result = step.to_dict()
-        
+
         assert result["step_id"] == "test_step"
         assert result["title"] == "Test Step"
         assert result["agent_type"] == "coder"
@@ -57,10 +57,10 @@ class TestTaskPlan:
                 dependencies=["step1"],
             ),
         ]
-        
+
         plan = TaskPlan(task="Test task", steps=steps)
         json_str = plan.to_json()
-        
+
         # Verify it's valid JSON
         parsed = json.loads(json_str)
         assert parsed["task"] == "Test task"
@@ -75,19 +75,19 @@ class TestTaskPlan:
             TaskStep(step_id="s2", title="S2", description="", agent_type="coder", dependencies=["s1"]),
             TaskStep(step_id="s3", title="S3", description="", agent_type="reviewer", dependencies=["s2"]),
         ]
-        
+
         plan = TaskPlan(task="Test", steps=steps)
-        
+
         # No steps completed - only s1 is ready
         ready = plan.get_ready_steps(set())
         assert len(ready) == 1
         assert ready[0].step_id == "s1"
-        
+
         # s1 completed - s2 is ready
         ready = plan.get_ready_steps({"s1"})
         assert len(ready) == 1
         assert ready[0].step_id == "s2"
-        
+
         # s1 and s2 completed - s3 is ready
         ready = plan.get_ready_steps({"s1", "s2"})
         assert len(ready) == 1
@@ -112,15 +112,15 @@ class TestPlannerAgent:
             "result": None,
             "error": None,
         }
-        
+
         result = await planner.execute(state)
-        
+
         # Check result contains plan
         assert "result" in result
         plan = result["result"].get("plan", {})
         assert "steps" in plan
         assert len(plan["steps"]) > 0
-        
+
         # Verify JSON format
         plan_json = result["result"].get("plan_json", "{}")
         parsed = json.loads(plan_json)
@@ -143,10 +143,10 @@ class TestPlannerAgent:
             "result": None,
             "error": None,
         }
-        
+
         result = await planner.execute(state)
         plan = result["result"].get("plan", {})
-        
+
         # Bug fix should have bug_analysis and root_cause steps
         step_ids = [s["step_id"] for s in plan["steps"]]
         assert "bug_analysis" in step_ids
@@ -155,7 +155,7 @@ class TestPlannerAgent:
     def test_infer_task_type(self):
         """Test task type inference."""
         planner = PlannerAgent()
-        
+
         assert planner._infer_task_type("Create a new feature") == "implementation"
         assert planner._infer_task_type("Build a REST API") == "implementation"
         assert planner._infer_task_type("Fix the bug") == "bug_fix"
@@ -181,9 +181,9 @@ class TestResearcherAgent:
             "result": None,
             "error": None,
         }
-        
+
         result = await researcher.execute(state)
-        
+
         assert "agent_states" in result
         assert "researcher" in result["agent_states"]
         assert "findings" in result["agent_states"]["researcher"]
@@ -207,9 +207,9 @@ class TestCoderAgent:
             "result": None,
             "error": None,
         }
-        
+
         result = await coder.execute(state)
-        
+
         assert "result" in result
         assert "code" in result["result"]
         assert "python" in result["result"]["language"]
@@ -230,9 +230,9 @@ class TestCoderAgent:
             "result": None,
             "error": None,
         }
-        
+
         result = await coder.execute(state)
-        
+
         assert "typescript" in result["result"]["language"]
 
 
@@ -243,19 +243,19 @@ class TestWorkflow:
     async def test_planner_researcher_coder_workflow(self):
         """Test the three-agent workflow."""
         workflow = AgentWorkflow(workflow_type="planner_researcher_coder")
-        
+
         result = await workflow.run(
             task="Build a user registration API",
             session_id="test-session",
             context={"language": "python"},
         )
-        
+
         # Verify workflow completed
         assert "agent_states" in result
         assert "planner" in result["agent_states"]
         assert "researcher" in result["agent_states"]
         assert "coder" in result["agent_states"]
-        
+
         # Verify plan was created
         plan = result["agent_states"]["planner"].get("plan", {})
         assert "steps" in plan
@@ -263,9 +263,9 @@ class TestWorkflow:
     def test_get_plan_json(self):
         """Test getting plan JSON without execution."""
         workflow = AgentWorkflow()
-        
+
         plan_json = workflow.get_plan_json("Create a web scraper")
-        
+
         parsed = json.loads(plan_json)
         assert "steps" in parsed
         assert len(parsed["steps"]) > 0

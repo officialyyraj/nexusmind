@@ -134,9 +134,9 @@ class TestGitHubClientParsing:
     def test_parse_full_url(self):
         """Test parsing full GitHub URL."""
         from app.integrations.github.github_client import GitHubClient
-        
+
         client = GitHubClient()
-        
+
         # Short form is most reliable
         owner, repo = client._parse_repo_url("owner/repo")
         assert owner == "owner"
@@ -145,9 +145,9 @@ class TestGitHubClientParsing:
     def test_parse_invalid_url(self):
         """Test parsing invalid URL raises error."""
         from app.integrations.github.github_client import GitHubClient
-        
+
         client = GitHubClient()
-        
+
         with pytest.raises(ValueError, match="Invalid GitHub URL"):
             client._parse_repo_url("not-a-url")
 
@@ -159,19 +159,19 @@ class TestGitHubServiceMocked:
     async def test_clone_repository_success(self):
         """Test successful repository clone."""
         from app.integrations.github.github_service import GitHubService
-        
+
         service = GitHubService()
-        
+
         # Mock the client
         service.client.clone_repository = MagicMock(return_value="/tmp/repo")
-        
+
         request = RepositoryCloneRequest(
             repo_url="https://github.com/owner/repo",
             local_path="/tmp/repo",
         )
-        
+
         response = await service.clone_repository(request)
-        
+
         assert response.success is True
         assert response.operation == GitHubOperation.CLONE
         assert response.data["path"] == "/tmp/repo"
@@ -180,21 +180,21 @@ class TestGitHubServiceMocked:
     async def test_clone_repository_error(self):
         """Test repository clone error."""
         from app.integrations.github.github_service import GitHubService
-        
+
         service = GitHubService()
-        
+
         # Mock the client to raise an error
         service.client.clone_repository = MagicMock(
             side_effect=Exception("Network error")
         )
-        
+
         request = RepositoryCloneRequest(
             repo_url="https://github.com/owner/repo",
             local_path="/tmp/repo",
         )
-        
+
         response = await service.clone_repository(request)
-        
+
         assert response.success is False
         assert response.operation == GitHubOperation.CLONE
         assert "Network error" in response.error
@@ -205,9 +205,9 @@ class TestGitHubServiceMocked:
         from app.integrations.github.github_service import GitHubService
         from app.integrations.github.schemas import CommitInfo
         from datetime import datetime
-        
+
         service = GitHubService()
-        
+
         # Mock commit info as proper dataclass
         mock_commit = CommitInfo(
             sha="abc123",
@@ -219,17 +219,17 @@ class TestGitHubServiceMocked:
             committer_email="dev@example.com",
             committer_date=datetime.now(),
         )
-        
+
         service.client.commit_changes = MagicMock(return_value=mock_commit)
-        
+
         request = CommitRequest(
             repo_path="/tmp/repo",
             message="Test commit",
             files=["."],
         )
-        
+
         response = await service.commit_changes(request)
-        
+
         assert response.success is True
         assert response.operation == GitHubOperation.COMMIT
 
@@ -238,9 +238,9 @@ class TestGitHubServiceMocked:
         """Test creating a branch."""
         from app.integrations.github.github_service import GitHubService
         from app.integrations.github.schemas import BranchInfo
-        
+
         service = GitHubService()
-        
+
         # Mock branch info
         mock_branch = BranchInfo(
             name="feature/new",
@@ -248,17 +248,17 @@ class TestGitHubServiceMocked:
             is_protected=False,
             is_default=False,
         )
-        
+
         service.client.create_branch = MagicMock(return_value=mock_branch)
-        
+
         request = BranchCreateRequest(
             repo_path="/tmp/repo",
             branch_name="feature/new",
             from_branch="main",
         )
-        
+
         response = await service.create_branch(request)
-        
+
         assert response.success is True
         assert response.data["name"] == "feature/new"
 
@@ -266,23 +266,23 @@ class TestGitHubServiceMocked:
     async def test_push_changes(self):
         """Test pushing changes."""
         from app.integrations.github.github_service import GitHubService
-        
+
         service = GitHubService()
-        
+
         service.client.push_changes = MagicMock(return_value={
             "success": True,
             "pushed_commits": 3,
             "branch": "main",
         })
-        
+
         request = PushRequest(
             repo_path="/tmp/repo",
             remote="origin",
             branch="main",
         )
-        
+
         response = await service.push_changes(request)
-        
+
         assert response.success is True
         assert response.data["pushed_commits"] == 3
 
@@ -290,23 +290,23 @@ class TestGitHubServiceMocked:
     async def test_pull_changes(self):
         """Test pulling changes."""
         from app.integrations.github.github_service import GitHubService
-        
+
         service = GitHubService()
-        
+
         service.client.pull_changes = MagicMock(return_value={
             "success": True,
             "files_changed": 5,
             "insertions": 100,
             "deletions": 20,
         })
-        
+
         request = PullRequest(
             repo_path="/tmp/repo",
             remote="origin",
         )
-        
+
         response = await service.pull_changes(request)
-        
+
         assert response.success is True
         assert response.data["files_changed"] == 5
 
@@ -316,9 +316,9 @@ class TestGitHubServiceMocked:
         from app.integrations.github.github_service import GitHubService
         from datetime import datetime
         from app.integrations.github.schemas import IssueInfo
-        
+
         service = GitHubService()
-        
+
         # Mock issue info
         mock_issue = IssueInfo(
             number=42,
@@ -334,18 +334,18 @@ class TestGitHubServiceMocked:
             closed_at=None,
             html_url="https://github.com/owner/repo/issues/42",
         )
-        
+
         service.client.create_issue = MagicMock(return_value=mock_issue)
-        
+
         request = IssueCreateRequest(
             repo_url="https://github.com/owner/repo",
             title="Bug report",
             body="Description",
             labels=["bug"],
         )
-        
+
         response = await service.create_issue(request)
-        
+
         assert response.success is True
         assert response.data["number"] == 42
         assert response.data["title"] == "Bug report"
@@ -355,9 +355,9 @@ class TestGitHubServiceMocked:
         """Test searching repository."""
         from app.integrations.github.github_service import GitHubService
         from app.integrations.github.schemas import SearchResponse, SearchResultItem
-        
+
         service = GitHubService()
-        
+
         # Mock search response
         mock_results = SearchResponse(
             total=2,
@@ -372,17 +372,17 @@ class TestGitHubServiceMocked:
                 ),
             ],
         )
-        
+
         service.client.search = MagicMock(return_value=mock_results)
-        
+
         request = SearchRequest(
             repo_path="/tmp/repo",
             query="authentication",
             search_type="code",
         )
-        
+
         response = await service.search(request)
-        
+
         assert response.success is True
         assert response.data["total"] == 2
 
@@ -391,19 +391,19 @@ class TestGitHubServiceMocked:
         """Test getting repository tree."""
         from app.integrations.github.github_service import GitHubService
         from app.integrations.github.schemas import TreeItem
-        
+
         service = GitHubService()
-        
+
         # Mock tree items
         mock_tree = [
             TreeItem(path="src/main.py", type="blob", size=1000, sha="abc"),
             TreeItem(path="src/utils/", type="tree", size=None, sha="def"),
         ]
-        
+
         service.client.get_tree = MagicMock(return_value=mock_tree)
-        
+
         response = await service.get_tree("/tmp/repo", "/src", recursive=False)
-        
+
         assert response.success is True
         assert len(response.data["tree"]) == 2
 
@@ -414,21 +414,21 @@ class TestGitHubIntegrationEndpoints:
     def test_router_prefix(self):
         """Test router has correct prefix."""
         from app.integrations.github.router import router
-        
+
         assert router.prefix == "/github"
 
     def test_router_tags(self):
         """Test router has correct tags."""
         from app.integrations.github.router import router
-        
+
         assert "GitHub Integration" in router.tags
 
     def test_endpoints_exist(self):
         """Test required endpoints are defined."""
         from app.integrations.github.router import router
-        
+
         paths = [route.path for route in router.routes]
-        
+
         assert any("/clone" in path for path in paths)
         assert any("/open" in path for path in paths)
         assert any("/branch/create" in path for path in paths)

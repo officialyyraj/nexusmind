@@ -61,14 +61,14 @@ async def run_improvement_loop(request: dict[str, Any]) -> ImprovementLoop:
     """
     loop = get_loop()
     storage = get_storage()
-    
+
     # Create config
     config = ImprovementConfig(
         max_iterations=request.get("max_iterations", 10),
         quality_threshold=request.get("quality_threshold", 0.9),
         save_iterations=request.get("save_iterations", True),
     )
-    
+
     # Create loop with config
     improvement_loop = SelfImprovementLoop(
         generator=mock_generator,
@@ -76,13 +76,13 @@ async def run_improvement_loop(request: dict[str, Any]) -> ImprovementLoop:
         storage=storage,
         config=config,
     )
-    
+
     # Run loop
     result = await improvement_loop.run(
         task=request["task"],
         initial_solution=request.get("initial_solution"),
     )
-    
+
     return result
 
 
@@ -112,10 +112,10 @@ async def get_loop_by_id(loop_id: str) -> ImprovementLoop:
     """
     storage = get_storage()
     loop = storage.get_loop(loop_id)
-    
+
     if not loop:
         raise HTTPException(status_code=404, detail="Loop not found")
-    
+
     return loop
 
 
@@ -131,7 +131,7 @@ async def get_loop_iterations(loop_id: str) -> list[dict[str, Any]]:
     """
     storage = get_storage()
     iterations = storage.get_iterations(loop_id)
-    
+
     return [
         {
             "iteration": i.iteration,
@@ -164,14 +164,14 @@ async def search_loops(
         List of matching loops
     """
     storage = get_storage()
-    
+
     status_enum = None
     if status:
         try:
             status_enum = ImprovementStatus(status)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
-    
+
     return storage.search_loops(
         task_query=task_query,
         min_quality=min_quality,
@@ -203,10 +203,10 @@ async def delete_loop(loop_id: str) -> dict[str, bool]:
     """
     storage = get_storage()
     deleted = storage.delete_loop(loop_id)
-    
+
     if not deleted:
         raise HTTPException(status_code=404, detail="Loop not found")
-    
+
     return {"deleted": True}
 
 
@@ -222,16 +222,16 @@ async def continue_loop(loop_id: str) -> ImprovementLoop:
     """
     storage = get_storage()
     loop = storage.get_loop(loop_id)
-    
+
     if not loop:
         raise HTTPException(status_code=404, detail="Loop not found")
-    
+
     if loop.status not in [ImprovementStatus.MAX_ITERATIONS, ImprovementStatus.CONVERGED]:
         raise HTTPException(
             status_code=400,
             detail=f"Loop is still {loop.status.value}",
         )
-    
+
     # Create new loop with extended iterations
     improvement_loop = SelfImprovementLoop(
         generator=mock_generator,
@@ -239,11 +239,11 @@ async def continue_loop(loop_id: str) -> ImprovementLoop:
         storage=storage,
         config=ImprovementConfig(max_iterations=loop.max_iterations + 5),
     )
-    
+
     # Continue from final solution
     result = await improvement_loop.run(
         task=loop.task,
         initial_solution=loop.final_solution,
     )
-    
+
     return result

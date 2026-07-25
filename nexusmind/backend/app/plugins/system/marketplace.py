@@ -67,7 +67,7 @@ class MarketplaceClient:
             params["type"] = plugin_type
         if tags:
             params["tags"] = ",".join(tags)
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{self._url}/api/v1/plugins/search",
@@ -76,7 +76,7 @@ class MarketplaceClient:
             )
             response.raise_for_status()
             data = response.json()
-            
+
             return [MarketplaceListing(**item) for item in data.get("results", [])]
 
     async def get_listing(self, plugin_id: str) -> MarketplaceListing:
@@ -131,32 +131,32 @@ class MarketplaceClient:
             Download info with manifest
         """
         version_info = await self.get_version(plugin_id, version or "latest")
-        
+
         # Download plugin package
         download_url = version_info.get("download_url")
         if not download_url:
             raise MarketplaceError("No download URL available")
-        
+
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.get(download_url)
             response.raise_for_status()
-            
+
             # Parse plugin package
             import tarfile
             import io
-            
+
             with tarfile.open(fileobj=io.BytesIO(response.content), mode="r:gz") as tar:
                 # Extract to target directory
                 manifest_data = None
-                
+
                 for member in tar.getmembers():
                     if member.name == "plugin.json":
                         manifest_data = json.loads(tar.extractfile(member).read())
                         break
-                
+
                 if not manifest_data:
                     raise MarketplaceError("Invalid plugin package: missing plugin.json")
-                
+
                 return {
                     "manifest": PluginManifest(**manifest_data),
                     "version": version_info,
@@ -211,7 +211,7 @@ class MarketplaceClient:
             )
             response.raise_for_status()
             data = response.json()
-            
+
             return [MarketplaceListing(**item) for item in data.get("results", [])]
 
     async def get_categories(self) -> list[dict[str, Any]]:
@@ -255,11 +255,11 @@ class LocalMarketplace:
         """
         plugin_dir = self._directory / manifest.metadata.id
         plugin_dir.mkdir(exist_ok=True)
-        
+
         # Save manifest
         with open(plugin_dir / "plugin.json", "w") as f:
             json.dump(manifest.model_dump(), f, indent=2)
-        
+
         # Save additional files
         if files:
             for filename, content in files.items():
@@ -286,10 +286,10 @@ class LocalMarketplace:
             PluginManifest or None
         """
         manifest_path = self._directory / plugin_id / "plugin.json"
-        
+
         if not manifest_path.exists():
             return None
-        
+
         with open(manifest_path) as f:
             return PluginManifest(**json.load(f))
 
@@ -304,10 +304,10 @@ class LocalMarketplace:
             File content or None
         """
         file_path = self._directory / plugin_id / filename
-        
+
         if not file_path.exists():
             return None
-        
+
         with open(file_path) as f:
             return f.read()
 
@@ -318,7 +318,7 @@ class LocalMarketplace:
             List of marketplace listings
         """
         listings = []
-        
+
         for plugin_id in self.get_plugin_ids():
             manifest = self.get_manifest(plugin_id)
             if manifest:
@@ -328,7 +328,7 @@ class LocalMarketplace:
                     rating=0.0,
                     verified=True,  # Local = verified
                 ))
-        
+
         return listings
 
 

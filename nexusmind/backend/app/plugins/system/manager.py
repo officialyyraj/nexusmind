@@ -65,7 +65,7 @@ class PluginManager:
         """
         self._plugins_dir = Path(plugins_dir)
         self._plugins_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self._plugins: dict[str, PluginInfo] = {}
         self._instances: dict[str, PluginInterface] = {}
         self._permissions_enabled = permissions_enabled
@@ -80,7 +80,7 @@ class PluginManager:
             "before_disable": [],
             "after_disable": [],
         }
-        
+
         # Active permissions for current context
         self._active_permissions: set[Permission] = set()
 
@@ -147,16 +147,16 @@ class PluginManager:
         """
         if not self._permissions_enabled:
             return True
-        
+
         plugin = self._plugins.get(plugin_id)
         if not plugin:
             return False
-        
+
         # Check if plugin's permissions are granted
         for perm in plugin.manifest.metadata.permissions:
             if perm in required_permissions and perm not in self._active_permissions:
                 return False
-        
+
         return True
 
     def register_plugin(
@@ -171,12 +171,12 @@ class PluginManager:
             instance: Plugin instance
         """
         plugin_id = manifest.metadata.id
-        
+
         plugin_info = PluginInfo(
             manifest=manifest,
             status=PluginStatus.INSTALLED,
         )
-        
+
         self._plugins[plugin_id] = plugin_info
         self._instances[plugin_id] = instance
 
@@ -203,28 +203,28 @@ class PluginManager:
         plugin = self._plugins.get(plugin_id)
         if not plugin:
             raise PluginError(f"Plugin not registered: {plugin_id}")
-        
+
         if plugin.status in [PluginStatus.ENABLED]:
             return plugin
-        
+
         await self._run_hooks("before_load", plugin_id)
-        
+
         try:
             # Check dependencies
             await self._check_dependencies(plugin_id)
-            
+
             # Initialize plugin
             instance = self._instances.get(plugin_id)
             if instance:
                 await instance.initialize()
-            
+
             plugin.status = PluginStatus.ENABLED
             plugin.updated_at = plugin.updated_at
-            
+
             await self._run_hooks("after_load", plugin_id)
-            
+
             return plugin
-            
+
         except Exception as e:
             plugin.status = PluginStatus.ERROR
             plugin.error = str(e)
@@ -239,18 +239,18 @@ class PluginManager:
         plugin = self._plugins.get(plugin_id)
         if not plugin:
             return
-        
+
         await self._run_hooks("before_unload", plugin_id)
-        
+
         try:
             instance = self._instances.get(plugin_id)
             if instance:
                 await instance.shutdown()
-            
+
             plugin.status = PluginStatus.DISABLED
-            
+
             await self._run_hooks("after_unload", plugin_id)
-            
+
         except Exception as e:
             plugin.status = PluginStatus.ERROR
             plugin.error = str(e)
@@ -266,16 +266,16 @@ class PluginManager:
             PluginInfo
         """
         await self._run_hooks("before_enable", plugin_id)
-        
+
         plugin = self._plugins.get(plugin_id)
         if not plugin:
             raise PluginError(f"Plugin not registered: {plugin_id}")
-        
+
         await self.load_plugin(plugin_id)
         plugin.config.enabled = True
-        
+
         await self._run_hooks("after_enable", plugin_id)
-        
+
         return plugin
 
     async def disable_plugin(self, plugin_id: str) -> PluginInfo:
@@ -288,16 +288,16 @@ class PluginManager:
             PluginInfo
         """
         await self._run_hooks("before_disable", plugin_id)
-        
+
         plugin = self._plugins.get(plugin_id)
         if not plugin:
             raise PluginError(f"Plugin not registered: {plugin_id}")
-        
+
         await self.unload_plugin(plugin_id)
         plugin.config.enabled = False
-        
+
         await self._run_hooks("after_disable", plugin_id)
-        
+
         return plugin
 
     async def reload_plugin(self, plugin_id: str) -> PluginInfo:
@@ -312,24 +312,24 @@ class PluginManager:
         plugin = self._plugins.get(plugin_id)
         if not plugin:
             raise PluginError(f"Plugin not registered: {plugin_id}")
-        
+
         plugin.status = PluginStatus.UPDATING
-        
+
         try:
             # Shutdown
             instance = self._instances.get(plugin_id)
             if instance:
                 await instance.shutdown()
-            
+
             # Re-initialize
             if instance:
                 await instance.initialize()
-            
+
             plugin.status = PluginStatus.ENABLED
             plugin.updated_at = plugin.updated_at
-            
+
             return plugin
-            
+
         except Exception as e:
             plugin.status = PluginStatus.ERROR
             plugin.error = str(e)
@@ -347,22 +347,22 @@ class PluginManager:
         plugin = self._plugins.get(plugin_id)
         if not plugin:
             return
-        
+
         for dep in plugin.manifest.metadata.dependencies:
             dep_plugin = self._plugins.get(dep.name)
-            
+
             if dep_plugin is None:
                 if not dep.optional:
                     raise DependencyError(f"Missing dependency: {dep.name}")
                 continue
-            
+
             installed_version = Version.parse(dep_plugin.manifest.metadata.version)
             if not dep.check_version(installed_version):
                 raise DependencyError(
                     f"Version mismatch for {dep.name}: "
                     f"required {dep.version}, got {installed_version}"
                 )
-            
+
             if dep_plugin.status != PluginStatus.ENABLED:
                 if not dep.optional:
                     raise DependencyError(f"Dependency not enabled: {dep.name}")
@@ -418,11 +418,11 @@ class PluginManager:
             Dict of plugin_id to PluginHealth
         """
         results = {}
-        
+
         for plugin_id, plugin in self._plugins.items():
             if plugin.status != PluginStatus.ENABLED:
                 continue
-            
+
             try:
                 instance = self._instances.get(plugin_id)
                 if instance:
@@ -437,7 +437,7 @@ class PluginManager:
                     healthy=False,
                     message=str(e),
                 )
-        
+
         return results
 
     def get_exports(self, plugin_id: str) -> PluginExport | None:
@@ -461,11 +461,11 @@ class PluginManager:
             Combined PluginExport
         """
         combined = PluginExport()
-        
+
         for plugin_id, plugin in self._plugins.items():
             if plugin.status != PluginStatus.ENABLED:
                 continue
-            
+
             exports = self.get_exports(plugin_id)
             if exports:
                 combined.tools.extend(exports.tools)
@@ -473,7 +473,7 @@ class PluginManager:
                 combined.workflows.extend(exports.workflows)
                 combined.api_routes.extend(exports.api_routes)
                 combined.ui_panels.extend(exports.ui_panels)
-        
+
         return combined
 
     async def load_from_directory(self, plugin_dir: Path) -> PluginInfo | None:
@@ -486,20 +486,20 @@ class PluginManager:
             PluginInfo or None
         """
         manifest_path = plugin_dir / "plugin.json"
-        
+
         if not manifest_path.exists():
             return None
-        
+
         with open(manifest_path) as f:
             data = json.load(f)
-        
+
         manifest = PluginManifest(**data)
         plugin_id = manifest.metadata.id
-        
+
         # Check if already loaded
         if plugin_id in self._plugins:
             return self._plugins[plugin_id]
-        
+
         # Load plugin module
         module_path = plugin_dir / "plugin.py"
         if module_path.exists():
@@ -511,7 +511,7 @@ class PluginManager:
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[f"plugin_{plugin_id}"] = module
                 spec.loader.exec_module(module)
-                
+
                 # Find plugin class
                 for attr_name in dir(module):
                     attr = getattr(module, attr_name)
@@ -526,7 +526,7 @@ class PluginManager:
         else:
             # Just register without instance
             self.register_plugin(manifest, None)
-        
+
         return self._plugins.get(plugin_id)
 
     async def load_all_plugins(self) -> list[PluginInfo]:
@@ -536,13 +536,13 @@ class PluginManager:
             List of loaded PluginInfo
         """
         loaded = []
-        
+
         for item in self._plugins_dir.iterdir():
             if item.is_dir():
                 plugin = await self.load_from_directory(item)
                 if plugin:
                     loaded.append(plugin)
-        
+
         return loaded
 
     async def uninstall_plugin(self, plugin_id: str) -> None:
@@ -553,7 +553,7 @@ class PluginManager:
         """
         if plugin_id not in self._plugins:
             return
-        
+
         # Check for dependents
         for other_id, other in self._plugins.items():
             if other_id == plugin_id:
@@ -563,10 +563,10 @@ class PluginManager:
                     raise DependencyError(
                         f"Cannot uninstall {plugin_id}: required by {other_id}"
                     )
-        
+
         await self.unload_plugin(plugin_id)
         self.unregister_plugin(plugin_id)
-        
+
         # Remove files
         plugin_dir = self._plugins_dir / plugin_id
         if plugin_dir.exists():

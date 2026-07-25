@@ -11,7 +11,6 @@ from app.integrations.github.schemas import (
     FileContentResponse,
     GitHubOperation,
     GitHubOperationResponse,
-    GitHubOperationResponse,
     IssueCreateRequest,
     IssueInfo,
     IssueUpdateRequest,
@@ -62,7 +61,7 @@ class GitHubService:
                 branch=request.branch,
                 depth=request.depth,
             )
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.CLONE,
@@ -91,7 +90,7 @@ class GitHubService:
         try:
             repo = self.client.open_repository(request.local_path)
             branch = repo.active_branch.name
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.OPEN,
@@ -123,7 +122,7 @@ class GitHubService:
         """
         try:
             info = self.client.get_repository_info(repo_path)
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.OPEN,
@@ -156,7 +155,7 @@ class GitHubService:
                 branch_name=request.branch_name,
                 from_branch=request.from_branch,
             )
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.CREATE_BRANCH,
@@ -184,7 +183,7 @@ class GitHubService:
         """
         try:
             branches = self.client.list_branches(repo_path)
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.OPEN,
@@ -219,7 +218,7 @@ class GitHubService:
                 author_name=request.author_name,
                 author_email=request.author_email,
             )
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.COMMIT,
@@ -253,7 +252,7 @@ class GitHubService:
                 remote=request.remote,
                 branch=request.branch,
             )
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.PUSH,
@@ -285,7 +284,7 @@ class GitHubService:
                 remote=request.remote,
                 branch=request.branch,
             )
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.PULL,
@@ -317,7 +316,7 @@ class GitHubService:
         """
         try:
             prs = self.client.get_pull_requests(repo_url, state)
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.READ_ISSUES,
@@ -347,7 +346,7 @@ class GitHubService:
                 repo_path=request.repo_path,
                 request=request,
             )
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.CREATE_PR,
@@ -381,7 +380,7 @@ class GitHubService:
         """
         try:
             issues = self.client.get_issues(repo_url, state, labels)
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.READ_ISSUES,
@@ -414,7 +413,7 @@ class GitHubService:
                 labels=request.labels,
                 assignees=request.assignees,
             )
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.CREATE_ISSUE,
@@ -450,7 +449,7 @@ class GitHubService:
                 issue_number=issue_number,
                 request=request,
             )
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.CREATE_ISSUE,
@@ -484,7 +483,7 @@ class GitHubService:
         """
         try:
             tree = self.client.get_tree(repo_path, path, recursive)
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.READ_TREE,
@@ -517,7 +516,7 @@ class GitHubService:
         """
         try:
             content = self.client.read_file(repo_path, file_path, ref)
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.READ_FILE,
@@ -546,7 +545,7 @@ class GitHubService:
         """
         try:
             results = self.client.search(request)
-            
+
             return GitHubOperationResponse(
                 success=True,
                 operation=GitHubOperation.SEARCH,

@@ -35,10 +35,10 @@ class MCPRegistry:
         async with self._lock:
             # Store tool definition
             self._tools[tool.name] = tool
-            
+
             # Store handler
             self._handlers[tool.name] = handler
-            
+
             # Track which server owns this tool
             if tool.server_name not in self._server_tools:
                 self._server_tools[tool.server_name] = set()
@@ -56,14 +56,14 @@ class MCPRegistry:
         async with self._lock:
             if tool_name not in self._tools:
                 return False
-            
+
             tool = self._tools.pop(tool_name)
             self._handlers.pop(tool_name, None)
-            
+
             # Remove from server tracking
             if tool.server_name in self._server_tools:
                 self._server_tools[tool.server_name].discard(tool_name)
-            
+
             return True
 
     async def unregister_server_tools(self, server_name: str) -> list[str]:
@@ -77,13 +77,13 @@ class MCPRegistry:
         """
         async with self._lock:
             tool_names = list(self._server_tools.get(server_name, set()))
-            
+
             for tool_name in tool_names:
                 self._tools.pop(tool_name, None)
                 self._handlers.pop(tool_name, None)
-            
+
             self._server_tools.pop(server_name, None)
-            
+
             return tool_names
 
     def get_tool(self, tool_name: str) -> MCPTool | None:
@@ -144,7 +144,7 @@ class MCPRegistry:
             Tool invocation result
         """
         start_time = datetime.utcnow()
-        
+
         tool = self._tools.get(invocation.tool_name)
         if not tool:
             return MCPToolInvocationResult(
@@ -154,7 +154,7 @@ class MCPRegistry:
                 execution_time=0.0,
                 server_name="",
             )
-        
+
         handler = self._handlers.get(invocation.tool_name)
         if not handler:
             return MCPToolInvocationResult(
@@ -164,15 +164,15 @@ class MCPRegistry:
                 execution_time=0.0,
                 server_name=tool.server_name,
             )
-        
+
         try:
             result = await asyncio.wait_for(
                 handler(**invocation.arguments),
                 timeout=invocation.timeout,
             )
-            
+
             execution_time = (datetime.utcnow() - start_time).total_seconds()
-            
+
             return MCPToolInvocationResult(
                 success=True,
                 tool_name=invocation.tool_name,
@@ -180,7 +180,7 @@ class MCPRegistry:
                 execution_time=execution_time,
                 server_name=tool.server_name,
             )
-            
+
         except asyncio.TimeoutError:
             return MCPToolInvocationResult(
                 success=False,
@@ -189,7 +189,7 @@ class MCPRegistry:
                 execution_time=invocation.timeout,
                 server_name=tool.server_name,
             )
-            
+
         except Exception as e:
             execution_time = (datetime.utcnow() - start_time).total_seconds()
             return MCPToolInvocationResult(

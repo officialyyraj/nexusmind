@@ -106,7 +106,7 @@ class ChromaMemoryService:
         self.client = chromadb.PersistentClient(
             path=self.settings.chromadb_persist_directory,
         )
-        
+
         # Create collections for each memory type
         self._init_collections()
 
@@ -184,7 +184,7 @@ class ChromaMemoryService:
             where={"session_id": session_id},
             limit=limit,
         )
-        
+
         messages = []
         if results["ids"]:
             for i, doc_id in enumerate(results["ids"]):
@@ -193,7 +193,7 @@ class ChromaMemoryService:
                     "content": results["documents"][i],
                     "metadata": results["metadatas"][i] if results["metadatas"] else {},
                 })
-        
+
         return sorted(messages, key=lambda x: x["metadata"].get("created_at", ""))
 
     async def search_conversations(
@@ -204,13 +204,13 @@ class ChromaMemoryService:
     ) -> list[dict[str, Any]]:
         """Semantic search in conversations."""
         where_filter = {"session_id": session_id} if session_id else None
-        
+
         results = self.collections[MemoryType.CONVERSATION].query(
             query_texts=[query],
             n_results=n_results,
             where=where_filter,
         )
-        
+
         return self._format_search_results(results)
 
     # ==================== PLAN MEMORY ====================
@@ -275,13 +275,13 @@ class ChromaMemoryService:
             existing = self.collections[MemoryType.PLAN].get(ids=[entry_id])
             if not existing["ids"]:
                 return False
-            
+
             meta = dict(existing["metadatas"][0])
             meta["status"] = status
             if completed_steps:
                 meta["completed_steps"] = json.dumps(completed_steps)
             meta["updated_at"] = datetime.utcnow().isoformat()
-            
+
             self.collections[MemoryType.PLAN].update(
                 ids=[entry_id],
                 metadatas=[meta],
@@ -298,13 +298,13 @@ class ChromaMemoryService:
     ) -> list[dict[str, Any]]:
         """Search plans semantically."""
         where_filter = {"session_id": session_id} if session_id else None
-        
+
         results = self.collections[MemoryType.PLAN].query(
             query_texts=[query],
             n_results=n_results,
             where=where_filter,
         )
-        
+
         formatted = []
         for i, doc_id in enumerate(results["ids"][0] if results["ids"] else []):
             try:
@@ -376,13 +376,13 @@ class ChromaMemoryService:
     ) -> list[dict[str, Any]]:
         """Search for similar fixes."""
         where_filter = {"session_id": session_id} if session_id else None
-        
+
         results = self.collections[MemoryType.FIX].query(
             query_texts=[query],
             n_results=n_results,
             where=where_filter,
         )
-        
+
         formatted = []
         for i, doc_id in enumerate(results["ids"][0] if results["ids"] else []):
             try:
@@ -437,7 +437,7 @@ class ChromaMemoryService:
             where_filter["output_type"] = output_type
 
         results = self.collections[MemoryType.OUTPUT].get(where=where_filter)
-        
+
         outputs = []
         if results["ids"]:
             for i, doc_id in enumerate(results["ids"]):
@@ -494,7 +494,7 @@ class ChromaMemoryService:
             n_results=n_results,
             where=where_filter if where_filter else None,
         )
-        
+
         return self._format_search_results(results)
 
     async def semantic_search(

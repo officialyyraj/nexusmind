@@ -38,7 +38,7 @@ class BrowserTool:
         self._sessions: dict[str, dict] = {}
         self._download_path = download_path or "/tmp/downloads"
         self._lock = asyncio.Lock()
-        
+
         # Create download directory
         Path(self._download_path).mkdir(parents=True, exist_ok=True)
 
@@ -52,7 +52,7 @@ class BrowserTool:
         async with self._lock:
             for session_id in list(self._sessions.keys()):
                 await self.close_session(session_id)
-            
+
             if self._playwright:
                 await self._playwright.stop()
                 self._playwright = None
@@ -71,23 +71,23 @@ class BrowserTool:
         """
         await self.start()
         config = config or BrowserConfig()
-        
+
         session_id = str(uuid.uuid4())
-        
+
         # Launch browser
         browser_type = config.browser_type.value
         browser = await getattr(self._playwright, browser_type).launch(
             headless=config.headless,
             proxy=config.proxy,
         )
-        
+
         # Create context
         context = await browser.new_context(
             viewport={"width": config.viewport_width, "height": config.viewport_height},
             user_agent=config.user_agent,
             ignore_https_errors=config.ignore_https_errors,
         )
-        
+
         # Track session
         self._sessions[session_id] = {
             "browser": browser,
@@ -99,7 +99,7 @@ class BrowserTool:
             "console_logs": [],
             "downloads": [],
         }
-        
+
         return BrowserSession(
             session_id=session_id,
             browser_type=config.browser_type,
@@ -119,15 +119,15 @@ class BrowserTool:
         async with self._lock:
             if session_id not in self._sessions:
                 return False
-            
+
             session = self._sessions[session_id]
-            
+
             if session["page"]:
                 await session["page"].close()
-            
+
             await session["context"].close()
             await session["browser"].close()
-            
+
             del self._sessions[session_id]
             return True
 
@@ -144,25 +144,25 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
-        
+
         # Close existing page
         if session["page"]:
             await session["page"].close()
-        
+
         # Create new page
         page = await session["context"].new_page()
-        
+
         # Listen to console
         page.on("console", lambda msg: self._handle_console(session_id, msg))
-        
+
         # Listen to downloads
         page.on("download", lambda download: self._handle_download(session_id, download))
-        
+
         # Navigate
         await page.goto(url, timeout=session["config"].timeout)
-        
+
         session["page"] = page
-        
+
         return PageInfo(
             page_id=str(uuid.uuid4()),
             url=page.url,
@@ -215,7 +215,7 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session or not session["page"]:
             return BrowserResult(success=False, session_id=session_id, action="click", error="No active page")
-        
+
         try:
             await session["page"].click(
                 selector,
@@ -250,7 +250,7 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session or not session["page"]:
             return BrowserResult(success=False, session_id=session_id, action="fill", error="No active page")
-        
+
         try:
             await session["page"].fill(selector, value, delay=options.delay, force=options.force)
             return BrowserResult(success=True, session_id=session_id, action="fill", data={"selector": selector, "value": value})
@@ -274,26 +274,26 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session or not session["page"]:
             return BrowserResult(success=False, session_id=session_id, action="login", error="No active page")
-        
+
         try:
             page = session["page"]
-            
+
             # Navigate to login page if needed
             if credentials.login_url:
                 await page.goto(credentials.login_url)
-            
+
             # Default selectors
             username_selector = credentials.username_selector or 'input[name="username"], input[type="email"], input[id="email"]'
             password_selector = credentials.password_selector or 'input[name="password"], input[type="password"]'
             submit_selector = credentials.submit_selector or 'button[type="submit"], input[type="submit"]'
-            
+
             # Fill credentials
             await page.fill(username_selector, credentials.username)
             await page.fill(password_selector, credentials.password)
-            
+
             # Submit
             await page.click(submit_selector)
-            
+
             return BrowserResult(
                 success=True,
                 session_id=session_id,
@@ -321,10 +321,10 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session or not session["page"]:
             return BrowserResult(success=False, session_id=session_id, action="screenshot", error="No active page")
-        
+
         try:
             page = session["page"]
-            
+
             # Take screenshot
             image_bytes = await page.screenshot(
                 full_page=options.full_page,
@@ -332,10 +332,10 @@ class BrowserTool:
                 type=options.type,
                 quality=options.quality,
             )
-            
+
             # Encode to base64
             image_base64 = base64.b64encode(image_bytes).decode()
-            
+
             return BrowserResult(
                 success=True,
                 session_id=session_id,
@@ -364,20 +364,20 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session or not session["page"]:
             return BrowserResult(success=False, session_id=session_id, action="download", error="No active page")
-        
+
         try:
             # Navigate to trigger download or use page context
             async with session["page"].expect_download() as download_info:
                 await session["page"].evaluate(f"window.open('{url}', '_blank')")
-            
+
             download = await download_info.value
             path = await download.path()
-            
+
             # Move to download directory
             dest_path = Path(self._download_path) / (filename or download.suggested_filename)
             if path:
                 Path(path).rename(dest_path)
-            
+
             return BrowserResult(
                 success=True,
                 session_id=session_id,
@@ -406,7 +406,7 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session or not session["page"]:
             return BrowserResult(success=False, session_id=session_id, action="upload", error="No active page")
-        
+
         try:
             await session["page"].set_input_files(selector, file_path)
             return BrowserResult(
@@ -435,7 +435,7 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session or not session["page"]:
             return JavaScriptResult(result=None, error="No active page")
-        
+
         try:
             result = await session["page"].evaluate(script)
             return JavaScriptResult(result=result)
@@ -459,15 +459,15 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session or not session["page"]:
             raise ValueError(f"No active page for session: {session_id}")
-        
+
         page = session["page"]
-        
+
         if selector:
             # Extract from specific element
             element = await page.query_selector(selector)
             if not element:
                 raise ValueError(f"Element not found: {selector}")
-            
+
             html = await element.inner_html()
             text = await element.inner_text()
             elements_count = len(await element.query_selector_all("*"))
@@ -476,12 +476,12 @@ class BrowserTool:
             html = await page.content()
             text = await page.inner_text("body")
             elements_count = len(await page.query_selector_all("*"))
-        
+
         # Count elements
         images_count = len(await page.query_selector_all("img"))
         links_count = len(await page.query_selector_all("a"))
         scripts_count = len(await page.query_selector_all("script"))
-        
+
         return PageContent(
             url=page.url,
             title=await page.title(),
@@ -504,7 +504,7 @@ class BrowserTool:
         """
         if session_id not in self._sessions:
             return []
-        
+
         logs = self._sessions[session_id]["console_logs"]
         return [
             ConsoleEntry(
@@ -537,7 +537,7 @@ class BrowserTool:
         session = self._get_session(session_id)
         if not session:
             return None
-        
+
         return BrowserSession(
             session_id=session_id,
             browser_type=session["config"].browser_type,

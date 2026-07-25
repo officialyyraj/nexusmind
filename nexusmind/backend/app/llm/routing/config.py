@@ -20,10 +20,10 @@ def load_model_config(path: str | Path) -> ModelConfig:
         ModelConfig instance
     """
     path = Path(path)
-    
+
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
-    
+
     with open(path) as f:
         if path.suffix in [".yaml", ".yml"]:
             data = yaml.safe_load(f)
@@ -31,7 +31,7 @@ def load_model_config(path: str | Path) -> ModelConfig:
             data = json.load(f)
         else:
             raise ValueError(f"Unsupported config format: {path.suffix}")
-    
+
     return parse_config_data(data)
 
 
@@ -60,7 +60,7 @@ def parse_config_data(data: dict[str, Any]) -> ModelConfig:
             enabled=m.get("enabled", True),
             description=m.get("description", ""),
         ))
-    
+
     rules = []
     for r in data.get("routing_rules", []):
         rules.append(RoutingRule(
@@ -71,7 +71,7 @@ def parse_config_data(data: dict[str, Any]) -> ModelConfig:
             max_latency_ms=r.get("max_latency_ms"),
             min_context_length=r.get("min_context_length", 0),
         ))
-    
+
     return ModelConfig(
         models=models,
         routing_rules=rules,
@@ -89,7 +89,7 @@ def save_model_config(config: ModelConfig, path: str | Path) -> None:
         path: Path to save to
     """
     path = Path(path)
-    
+
     data = {
         "models": [
             {
@@ -122,7 +122,7 @@ def save_model_config(config: ModelConfig, path: str | Path) -> None:
         "routing_strategy": config.routing_strategy,
         "enable_fallback": config.enable_fallback,
     }
-    
+
     with open(path, "w") as f:
         if path.suffix in [".yaml", ".yml"]:
             yaml.dump(data, f, default_flow_style=False)

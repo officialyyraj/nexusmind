@@ -202,7 +202,7 @@ class ProjectGenerator:
     def _analyze_prompt(self, prompt: str) -> dict[str, Any]:
         """Analyze natural language prompt to extract requirements."""
         prompt_lower = prompt.lower()
-        
+
         # Detect project type
         project_type = ProjectType.WEB_APP
         if any(word in prompt_lower for word in ["api", "rest", "backend", "microservice"]):
@@ -215,7 +215,7 @@ class ProjectGenerator:
             project_type = ProjectType.FULLSTACK_APP
         elif any(word in prompt_lower for word in ["pipeline", "etl", "data"]):
             project_type = ProjectType.DATA_PIPELINE
-        
+
         # Detect language
         language = "python"
         if "typescript" in prompt_lower or "ts" in prompt_lower:
@@ -228,7 +228,7 @@ class ProjectGenerator:
             language = "java"
         elif "node" in prompt_lower or "javascript" in prompt_lower:
             language = "javascript"
-        
+
         # Detect framework
         framework = None
         if language == "python":
@@ -249,7 +249,7 @@ class ProjectGenerator:
             framework = "gin"
         elif language == "rust":
             framework = "actix"
-        
+
         # Detect database
         database = None
         if any(word in prompt_lower for word in ["postgres", "postgresql"]):
@@ -262,7 +262,7 @@ class ProjectGenerator:
             database = "sqlite"
         elif "redis" in prompt_lower:
             database = "redis"
-        
+
         # Detect cloud
         cloud = None
         if "aws" in prompt_lower or "amazon" in prompt_lower:
@@ -273,7 +273,7 @@ class ProjectGenerator:
             cloud = "azure"
         elif "kubernetes" in prompt_lower or "k8s" in prompt_lower:
             cloud = "kubernetes"
-        
+
         return {
             "project_type": project_type,
             "language": language,
@@ -286,7 +286,7 @@ class ProjectGenerator:
         """Create tech stack from analysis."""
         language = config.tech_stack.language if config.tech_stack else analysis.get("language", "python")
         framework = config.tech_stack.framework if config.tech_stack else analysis.get("framework")
-        
+
         # Set default framework based on language
         if not framework:
             if language == "python":
@@ -297,7 +297,7 @@ class ProjectGenerator:
                 framework = "gin"
             elif language == "rust":
                 framework = "actix"
-        
+
         return TechStack(
             language=language,
             framework=framework,
@@ -314,7 +314,7 @@ class ProjectGenerator:
         directories = []
         files = []
         hidden = [".gitignore", ".env.example"]
-        
+
         if tech_stack.language == "python":
             directories = ["app", "app/api", "app/core", "app/models", "app/schemas", "tests"]
             files = [
@@ -341,7 +341,7 @@ class ProjectGenerator:
             files = [
                 {"path": "Cargo.toml", "description": "Rust dependencies"},
             ]
-        
+
         return FolderStructure(
             root="project",
             directories=directories,
@@ -481,7 +481,7 @@ class ProjectGenerator:
     def _create_dependencies(self, tech_stack: TechStack) -> list[Dependency]:
         """Create project dependencies."""
         deps = []
-        
+
         if tech_stack.language == "python":
             deps = [
                 Dependency(package="fastapi", version="^0.100.0"),
@@ -497,7 +497,7 @@ class ProjectGenerator:
                     deps.append(Dependency(package="aiomysql", version="^0.2.0"))
                 elif "mongo" in tech_stack.database:
                     deps.append(Dependency(package="motor", version="^3.3.0"))
-        
+
         return deps
 
     # ===== Generation Methods =====
@@ -505,13 +505,13 @@ class ProjectGenerator:
     async def generate_plan(self, config: GenerationConfig) -> ProjectPlan:
         """Generate project plan from configuration."""
         analysis = self._analyze_prompt(config.description or config.project_name)
-        
+
         tech_stack = config.tech_stack or self._create_tech_stack(analysis, config)
         folder_structure = self._create_folder_structure(tech_stack)
         milestones = self._create_milestones(config.project_type)
         tasks = self._create_tasks(config.project_type, tech_stack)
         dependencies = self._create_dependencies(tech_stack)
-        
+
         return ProjectPlan(
             project_name=config.project_name,
             project_type=config.project_type,
@@ -527,64 +527,64 @@ class ProjectGenerator:
         """Generate project code."""
         project_dir = Path(output_dir) / plan.project_name.lower().replace(" ", "_")
         project_dir.mkdir(parents=True, exist_ok=True)
-        
+
         generated_files = []
-        
+
         # Create folder structure
         for directory in plan.folder_structure.directories:
             (project_dir / directory).mkdir(parents=True, exist_ok=True)
-        
+
         # Generate main application file
         main_content = self._generate_main_file(plan)
         main_path = project_dir / self._get_main_filename(plan.tech_stack.language)
         main_path.write_text(main_content)
         generated_files.append(str(main_path))
-        
+
         # Generate requirements/package file
         req_content = self._generate_requirements(plan)
         req_path = project_dir / self._get_requirements_filename(plan.tech_stack.language)
         req_path.write_text(req_content)
         generated_files.append(str(req_path))
-        
+
         # Generate config file
         config_content = self._generate_config_file(plan)
         config_path = project_dir / self._get_config_filename(plan.tech_stack.language)
         config_path.write_text(config_content)
         generated_files.append(str(config_path))
-        
+
         # Generate README
         readme_content = self._generate_readme(plan)
         readme_path = project_dir / "README.md"
         readme_path.write_text(readme_content)
         generated_files.append(str(readme_path))
-        
+
         # Generate .gitignore
         gitignore_content = self._generate_gitignore(plan)
         gitignore_path = project_dir / ".gitignore"
         gitignore_path.write_text(gitignore_content)
         generated_files.append(str(gitignore_path))
-        
+
         # Generate tests
         if plan.tech_stack.language == "python":
             test_content = self._generate_python_tests(plan)
             test_path = project_dir / "tests" / "test_main.py"
             test_path.write_text(test_content)
             generated_files.append(str(test_path))
-        
+
         # Generate Docker
         if plan.tech_stack.container == "docker":
             docker_content = self._generate_dockerfile(plan)
             docker_path = project_dir / "Dockerfile"
             docker_path.write_text(docker_content)
             generated_files.append(str(docker_path))
-        
+
         # Generate CI
         ci_content = self._generate_ci_workflow(plan)
         ci_path = project_dir / ".github" / "workflows" / "ci.yml"
         ci_path.parent.mkdir(parents=True, exist_ok=True)
         ci_path.write_text(ci_content)
         generated_files.append(str(ci_path))
-        
+
         return generated_files
 
     def _get_main_filename(self, language: str) -> str:
@@ -623,7 +623,7 @@ class ProjectGenerator:
     def _generate_main_file(self, plan: ProjectPlan) -> str:
         """Generate main application file."""
         language = plan.tech_stack.language
-        
+
         if language == "python":
             return f'''"""Main application module for {plan.project_name}."""
 
@@ -724,7 +724,7 @@ func main() {
     def _generate_requirements(self, plan: ProjectPlan) -> str:
         """Generate requirements file."""
         language = plan.tech_stack.language
-        
+
         if language == "python":
             reqs = ["fastapi>=0.100.0", "uvicorn>=0.23.0", "pydantic>=2.0.0"]
             if plan.tech_stack.database:
@@ -734,7 +734,7 @@ func main() {
                     reqs.append("aiomysql>=0.2.0")
             reqs.extend(["pytest>=7.0.0", "pytest-asyncio>=0.21.0", "pytest-cov>=4.0.0"])
             return "\n".join(reqs) + "\n"
-        
+
         elif language in ["typescript", "javascript"]:
             package = {
                 "name": plan.project_name.lower().replace(" ", "-"),
@@ -744,7 +744,7 @@ func main() {
                 "devDependencies": {"jest": "^29.0.0", "@types/node": "^20.0.0"},
             }
             return json.dumps(package, indent=2)
-        
+
         elif language == "go":
             return f'''module {plan.project_name.lower().replace(" ", "-")}
 
@@ -897,10 +897,10 @@ MIT
             "*.db",
             "*.sqlite",
         ]
-        
+
         if plan.tech_stack.database and "postgres" in plan.tech_stack.database:
             ignores.extend(["", "# PostgreSQL", "*.sql"])
-        
+
         return "\n".join(ignores) + "\n"
 
     def _generate_python_tests(self, plan: ProjectPlan) -> str:
@@ -950,9 +950,9 @@ def client():
     def _generate_dockerfile(self, plan: ProjectPlan) -> str:
         """Generate Dockerfile."""
         language = plan.tech_stack.language
-        
+
         if language == "python":
-            return f'''FROM python:3.11-slim
+            return '''FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -975,7 +975,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 '''
 
         elif language == "typescript":
-            return f'''FROM node:20-alpine
+            return '''FROM node:20-alpine
 
 WORKDIR /app
 
@@ -992,7 +992,7 @@ CMD ["node", "dist/index.js"]
 '''
 
         elif language == "go":
-            return f'''FROM golang:1.21-alpine AS builder
+            return '''FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 COPY . .
@@ -1007,7 +1007,7 @@ EXPOSE 8080
 CMD ["./main"]
 '''
 
-        return f'''FROM alpine:latest
+        return '''FROM alpine:latest
 WORKDIR /app
 COPY . .
 CMD ["echo", "Container started"]
@@ -1016,9 +1016,9 @@ CMD ["echo", "Container started"]
     def _generate_ci_workflow(self, plan: ProjectPlan) -> str:
         """Generate GitHub Actions CI workflow."""
         language = plan.tech_stack.language
-        
+
         if language == "python":
-            return f'''name: CI
+            return '''name: CI
 
 on:
   push:
@@ -1065,7 +1065,7 @@ jobs:
 '''
 
         elif language in ["typescript", "javascript"]:
-            return f'''name: CI
+            return '''name: CI
 
 on:
   push:
@@ -1095,7 +1095,7 @@ jobs:
 '''
 
         elif language == "go":
-            return f'''name: CI
+            return '''name: CI
 
 on:
   push:
@@ -1121,7 +1121,7 @@ jobs:
         run: go build ./...
 '''
 
-        return f'''name: CI
+        return '''name: CI
 
 on:
   push:
@@ -1144,27 +1144,27 @@ jobs:
     ) -> ProjectGeneration:
         """Generate complete project from configuration."""
         generation_id = str(uuid.uuid4())
-        
+
         self._generation = ProjectGeneration(
             generation_id=generation_id,
             config=config,
             status=ProjectStatus.PLANNING,
         )
-        
+
         try:
             # Phase 1: Planning
             self._generation.status = ProjectStatus.PLANNING
             self._generation.plan = await self.generate_plan(config)
-            
+
             if progress_callback:
                 await progress_callback(10, "Plan generated")
-            
+
             # Phase 2: Generation
             self._generation.status = ProjectStatus.GENERATING
             output_dir = config.output_directory
-            
+
             generated = await self.generate_code(self._generation.plan, output_dir)
-            
+
             for i, file_path in enumerate(generated):
                 self._generation.generated_files.append(
                     GeneratedFile(path=file_path, content="")
@@ -1172,17 +1172,17 @@ jobs:
                 if progress_callback:
                     progress = 10 + int((i + 1) / len(generated) * 80)
                     await progress_callback(progress, f"Generated {Path(file_path).name}")
-            
+
             # Phase 3: Complete
             self._generation.status = ProjectStatus.COMPLETED
             self._generation.completed_at = datetime.utcnow()
             self._generation.progress_percent = 100.0
-            
+
             if progress_callback:
                 await progress_callback(100, "Project generation complete")
-            
+
         except Exception as e:
             self._generation.status = ProjectStatus.FAILED
             self._generation.errors.append(str(e))
-        
+
         return self._generation

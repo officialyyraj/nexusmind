@@ -57,12 +57,12 @@ class GitHubClient:
         match = re.match(r"github\.com[/:]([^/]+)/([^/.]+)", url)
         if match:
             return match.group(1), match.group(2)
-        
+
         # Handle short form owner/repo
         if "/" in url:
             parts = url.split("/")
             return parts[0], parts[1]
-        
+
         raise ValueError(f"Invalid GitHub URL: {url}")
 
     # ==================== Repository Operations ====================
@@ -90,7 +90,7 @@ class GitHubClient:
             kwargs["branch"] = branch
         if depth:
             kwargs["depth"] = depth
-        
+
         repo = git.Repo.clone_from(repo_url, local_path, **kwargs)
         return str(repo.working_dir)
 
@@ -105,7 +105,7 @@ class GitHubClient:
         """
         if not os.path.exists(local_path):
             raise ValueError(f"Repository not found at: {local_path}")
-        
+
         try:
             return Repo(local_path)
         except git.InvalidGitRepositoryError:
@@ -121,15 +121,15 @@ class GitHubClient:
             Repository information dict
         """
         repo = self.open_repository(repo_path)
-        
+
         # Try to get remote URL
         remote_url = None
         if repo.remotes:
             remote_url = repo.remotes.origin.url
-        
+
         # Parse owner/repo from remote URL
         owner, repo_name = self._parse_repo_url(remote_url or repo_path)
-        
+
         return {
             "name": repo_name,
             "owner": owner,
@@ -175,17 +175,17 @@ class GitHubClient:
             BranchInfo object
         """
         repo = self.open_repository(repo_path)
-        
+
         if from_branch is None:
             from_branch = repo.active_branch.name
-        
+
         # Get the commit to branch from
         ref = repo.refs[from_branch]
-        
+
         # Create new branch
         new_branch = repo.create_head(branch_name, ref)
         new_branch.checkout()
-        
+
         return BranchInfo(
             name=branch_name,
             commit_sha=ref.commit.hexsha,
@@ -204,7 +204,7 @@ class GitHubClient:
         """
         repo = self.open_repository(repo_path)
         current = repo.active_branch.name
-        
+
         branches = []
         for ref in repo.refs:
             if isinstance(ref, git.Head):
@@ -214,7 +214,7 @@ class GitHubClient:
                     is_protected=False,
                     is_default=(ref.name == current),
                 ))
-        
+
         return branches
 
     # ==================== Commit Operations ====================
@@ -240,25 +240,25 @@ class GitHubClient:
             CommitInfo object
         """
         repo = self.open_repository(repo_path)
-        
+
         # Stage files
         if files is None or files == ["."]:
             repo.index.add("*")
         else:
             for file in files:
                 repo.index.add(file)
-        
+
         if not repo.index.diff("HEAD") and not repo.untracked_files:
             raise ValueError("No changes to commit")
-        
+
         # Set author if provided
         kwargs = {"message": message}
         if author_name:
             kwargs["author"] = git.Actor(author_name, author_email or "")
-        
+
         # Commit
         commit = repo.index.commit(**kwargs)
-        
+
         return CommitInfo(
             sha=commit.hexsha,
             message=commit.message,
@@ -289,26 +289,26 @@ class GitHubClient:
             Push result dict
         """
         repo = self.open_repository(repo_path)
-        
+
         if branch is None:
             branch = repo.active_branch.name
-        
+
         origin = repo.remote(remote)
-        
+
         # Count commits being pushed
         local_branch = repo.refs[branch]
         remote_branch = origin.refs[branch] if branch in [r.name for r in origin.refs] else None
-        
+
         if remote_branch:
             commits_ahead = len(list(repo.iter_commits(
                 f"{remote_branch.path}..{local_branch.path}"
             )))
         else:
-            commits_ahead = len(list(repo.iter_commits(f"HEAD")))
-        
+            commits_ahead = len(list(repo.iter_commits("HEAD")))
+
         # Push
         origin.push(refspec=f"refs/heads/{branch}:refs/heads/{branch}")
-        
+
         return {
             "success": True,
             "pushed_commits": commits_ahead,
@@ -332,18 +332,18 @@ class GitHubClient:
             Pull result dict
         """
         repo = self.open_repository(repo_path)
-        
+
         if branch is None:
             branch = repo.active_branch.name
-        
+
         origin = repo.remote(remote)
-        
+
         # Pull
         origin.pull(f"refs/heads/{branch}:refs/heads/{branch}")
-        
+
         # Get stats
         stats = repo.head.commit.stats
-        
+
         return {
             "success": True,
             "files_changed": stats["files_changed"],
@@ -370,7 +370,7 @@ class GitHubClient:
             Response data
         """
         url = f"{self.GITHUB_API_URL}/{endpoint.lstrip('/')}"
-        
+
         with httpx.Client() as client:
             response = client.request(
                 method=method,
@@ -396,13 +396,13 @@ class GitHubClient:
             List of PullRequestInfo objects
         """
         owner, repo = self._parse_repo_url(repo_url)
-        
+
         data = self._make_request(
             "GET",
             f"/repos/{owner}/{repo}/pulls",
             params={"state": state},
         )
-        
+
         return [
             PullRequestInfo(
                 number=pr["number"],
@@ -435,14 +435,14 @@ class GitHubClient:
             Created PullRequestInfo
         """
         repo = self.open_repository(repo_path)
-        
+
         # Get remote URL
         if not repo.remotes:
             raise ValueError("No remote configured")
-        
+
         remote_url = repo.remotes.origin.url
         owner, repo_name = self._parse_repo_url(remote_url)
-        
+
         data = self._make_request(
             "POST",
             f"/repos/{owner}/{repo_name}/pulls",
@@ -454,7 +454,7 @@ class GitHubClient:
                 "draft": request.draft,
             },
         )
-        
+
         return PullRequestInfo(
             number=data["number"],
             title=data["title"],
@@ -486,17 +486,17 @@ class GitHubClient:
             List of IssueInfo objects
         """
         owner, repo = self._parse_repo_url(repo_url)
-        
+
         params = {"state": state}
         if labels:
             params["labels"] = ",".join(labels)
-        
+
         data = self._make_request(
             "GET",
             f"/repos/{owner}/{repo}/issues",
             params=params,
         )
-        
+
         return [
             IssueInfo(
                 number=issue["number"],
@@ -537,7 +537,7 @@ class GitHubClient:
             Created IssueInfo
         """
         owner, repo = self._parse_repo_url(repo_url)
-        
+
         data = self._make_request(
             "POST",
             f"/repos/{owner}/{repo}/issues",
@@ -548,7 +548,7 @@ class GitHubClient:
                 "assignees": assignees or [],
             },
         )
-        
+
         return IssueInfo(
             number=data["number"],
             title=data["title"],
@@ -581,7 +581,7 @@ class GitHubClient:
             Updated IssueInfo
         """
         owner, repo = self._parse_repo_url(repo_url)
-        
+
         json_data = {}
         if request.title is not None:
             json_data["title"] = request.title
@@ -593,13 +593,13 @@ class GitHubClient:
             json_data["labels"] = request.labels
         if request.assignees is not None:
             json_data["assignees"] = request.assignees
-        
+
         data = self._make_request(
             "PATCH",
             f"/repos/{owner}/{repo}/issues/{issue_number}",
             json=json_data,
         )
-        
+
         return IssueInfo(
             number=data["number"],
             title=data["title"],
@@ -634,25 +634,25 @@ class GitHubClient:
             List of TreeItem objects
         """
         repo = self.open_repository(repo_path)
-        
+
         items = []
         repo_path_obj = Path(repo.working_dir)
-        
+
         if path == "/":
             search_path = repo_path_obj
         else:
             search_path = repo_path_obj / path
-        
+
         if not search_path.exists():
             return []
-        
+
         for item in search_path.rglob("*") if recursive else search_path.iterdir():
             # Skip .git directory
             if ".git" in item.parts:
                 continue
-            
+
             rel_path = item.relative_to(repo_path_obj)
-            
+
             if item.is_file():
                 items.append(TreeItem(
                     path=str(rel_path),
@@ -667,7 +667,7 @@ class GitHubClient:
                     size=None,
                     sha="",
                 ))
-        
+
         return items
 
     # ==================== File Operations ====================
@@ -689,14 +689,14 @@ class GitHubClient:
             FileContentResponse
         """
         repo = self.open_repository(repo_path)
-        
+
         if ref:
             # Read from specific ref
             commit = repo.commit(ref)
             tree = commit.tree
             for path_part in file_path.strip("/").split("/"):
                 tree = tree[path_part]
-            
+
             content = tree.data_stream.read()
             sha = tree.hexsha
         else:
@@ -704,13 +704,13 @@ class GitHubClient:
             full_path = Path(repo.working_dir) / file_path
             if not full_path.exists():
                 raise ValueError(f"File not found: {file_path}")
-            
+
             content = full_path.read_bytes()
             sha = ""
-        
+
         # Encode as base64 for binary safety
         encoded = base64.b64encode(content).decode()
-        
+
         return FileContentResponse(
             path=file_path,
             content=encoded,
@@ -741,21 +741,21 @@ class GitHubClient:
             Write result
         """
         repo = self.open_repository(repo_path)
-        
+
         # Write file
         full_path = Path(repo.working_dir) / file_path
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(content)
-        
+
         # Commit
         if branch:
             # Create branch if needed
             if branch not in [b.name for b in repo.branches]:
                 repo.create_head(branch)
             repo.git.checkout(branch)
-        
+
         self.commit_changes(repo_path, message, [file_path])
-        
+
         return {
             "path": file_path,
             "sha": repo.head.commit.hexsha,
@@ -778,23 +778,23 @@ class GitHubClient:
             SearchResponse
         """
         repo = self.open_repository(repo_path)
-        
+
         # Get remote URL for API search
         if not repo.remotes:
             raise ValueError("No remote configured for search")
-        
+
         remote_url = repo.remotes.origin.url
         owner, repo_name = self._parse_repo_url(remote_url)
-        
+
         if request.search_type == "code":
             params = {
                 "q": f"{request.query} repo:{owner}/{repo_name}",
             }
             if request.path:
                 params["q"] += f" path:{request.path}"
-            
+
             data = self._make_request("GET", "/search/code", params=params)
-            
+
             results = [
                 SearchResultItem(
                     type="code",
@@ -806,15 +806,15 @@ class GitHubClient:
                 )
                 for item in data.get("items", [])
             ]
-        
+
         elif request.search_type == "issues":
             params = {
                 "q": f"{request.query} repo:{owner}/{repo_name}",
                 "state": "open",
             }
-            
+
             data = self._make_request("GET", "/search/issues", params=params)
-            
+
             results = [
                 SearchResultItem(
                     type="issue",
@@ -826,14 +826,14 @@ class GitHubClient:
                 )
                 for item in data.get("items", [])
             ]
-        
+
         elif request.search_type == "commits":
             params = {
                 "q": f"{request.query} repo:{owner}/{repo_name}",
             }
-            
+
             data = self._make_request("GET", "/search/commits", params=params)
-            
+
             results = [
                 SearchResultItem(
                     type="commit",
@@ -845,10 +845,10 @@ class GitHubClient:
                 )
                 for item in data.get("items", [])
             ]
-        
+
         else:
             raise ValueError(f"Unknown search type: {request.search_type}")
-        
+
         return SearchResponse(
             total=data.get("total_count", 0),
             results=results,

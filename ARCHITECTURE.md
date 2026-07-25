@@ -1455,87 +1455,117 @@ class PluginManager:
 
 ## MCP Support
 
-### Model Context Protocol Implementation
+The Model Context Protocol (MCP) integration enables NexusMind to connect to standards-compliant MCP servers and expose their tools to agents.
 
-```python
-from mcp.server import MCPServer
-from mcp.types import Tool, Resource, Prompt
+### Architecture
 
-class MCPServerAdapter:
-    """MCP Server implementation for NexusMind"""
-    
-    def __init__(self, agent_registry: AgentRegistry):
-        self.server = MCPServer(
-            name="nexusmind",
-            version="1.0.0"
-        )
-        self.agent_registry = agent_registry
-        self._register_tools()
-        self._register_resources()
-        self._register_prompts()
-    
-    def _register_tools(self):
-        """Register agent tools as MCP tools"""
-        
-        @self.server.list_tools()
-        async def list_tools() -> list[Tool]:
-            return [
-                Tool(
-                    name="execute_agent",
-                    description="Execute a task with an agent",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "agent_type": {
-                                "type": "string",
-                                "enum": ["planner", "researcher", "coder"]
-                            },
-                            "task": {"type": "string"}
-                        },
-                        "required": ["agent_type", "task"]
-                    }
-                ),
-                Tool(
-                    name="search_memory",
-                    description="Search agent memory",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "query": {"type": "string"},
-                            "limit": {"type": "number", "default": 10}
-                        },
-                        "required": ["query"]
-                    }
-                ),
-                # ... more tools
-            ]
-        
-        @self.server.call_tool()
-        async def call_tool(
-            name: str,
-            arguments: dict
-        ) -> Any:
-            return await self._handle_tool_call(name, arguments)
-    
-    async def _handle_tool_call(
-        self,
-        name: str,
-        arguments: dict
-    ) -> Any:
-        """Route MCP tool calls to appropriate handlers"""
-        handlers = {
-            "execute_agent": self._execute_agent,
-            "search_memory": self._search_memory,
-            "create_session": self._create_session,
-            "list_sessions": self._list_sessions,
-        }
-        
-        handler = handlers.get(name)
-        if not handler:
-            raise ValueError(f"Unknown tool: {name}")
-        
-        return await handler(arguments)
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           MCP Integration                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                        MCPServerManager                               │  │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ │  │
+│  │  │  Server Config  │  │  Health Checks   │  │  Auto Reconnect  │ │  │
+│  │  └──────────────────┘  └──────────────────┘  └──────────────────┘ │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                          MCPClient                                   │  │
+│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐ │  │
+│  │  │  StdioTransport │  │  HTTPTransport   │  │  Tool Discovery │ │  │
+│  │  └──────────────────┘  └──────────────────┘  └──────────────────┘ │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+│                                    ↓                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐  │
+│  │                         MCPRegistry                                  │  │
+│  │  - Dynamic tool registration                                         │  │
+│  │  - Tool invocation with timeout/cancellation                         │  │
+│  │  - Permission validation                                             │  │
+│  └─────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Features
+
+- **Server Management**: Add, remove, enable, disable MCP servers dynamically
+- **Tool Discovery**: Automatically discover tools from connected servers  
+- **Tool Execution**: Execute MCP tools with sync/async support, streaming, timeout, and cancellation
+- **Transport Abstraction**: Support for stdio and HTTP transports with a common interface
+- **Health Checks**: Periodic health checks with automatic reconnection
+- **Security**: Trusted servers, tool allowlist/blocklist, permission validation
+- **API Integration**: Full REST API for server and tool management
+
+### Folder Structure
+
+```
+nexusmind/backend/app/mcp/
+├── __init__.py
+├── client.py           # MCP client implementation
+├── exceptions.py       # MCP-specific exceptions
+├── manager.py         # Server manager with lifecycle
+├── registry.py         # Tool registry
+├── schemas.py         # Pydantic models
+├── server_manager.py    # Backwards compatibility
+├── protocol.py         # Protocol definitions
+├── tools.py            # Tool integration
+├── utils/
+│   └── __init__.py    # Logging utilities
+└── transports/
+    ├── __init__.py
+    ├── base.py         # Base transport interface
+    ├── http.py         # HTTP transport
+    └── stdio.py        # Stdio transport
+```
+
+### Configuration
+
+MCP servers are configured via YAML in `config/mcp.yaml`:
+
+```yaml
+enabled: true
+default_timeout: 30
+auto_discover: true
+
+servers:
+  filesystem:
+    name: filesystem
+    transport: stdio
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/workspace"
+    enabled: true
+    trusted: true
+    auto_reconnect: true
+    
+  github:
+    name: github
+    transport: stdio
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-github"
+    env:
+      GITHUB_TOKEN: "${GITHUB_TOKEN}"
+```
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/mcp/servers` | List all servers |
+| POST | `/api/v1/mcp/servers` | Add new server |
+| DELETE | `/api/v1/mcp/servers/{name}` | Remove server |
+| POST | `/api/v1/mcp/servers/{name}/start` | Start server |
+| POST | `/api/v1/mcp/servers/{name}/stop` | Stop server |
+| POST | `/api/v1/mcp/servers/{name}/enable` | Enable server |
+| POST | `/api/v1/mcp/servers/{name}/disable` | Disable server |
+| GET | `/api/v1/mcp/tools` | List all tools |
+| GET | `/api/v1/mcp/tools/{name}` | Get tool details |
+| POST | `/api/v1/mcp/tools/{name}/execute` | Execute tool |
+| GET | `/api/v1/mcp/status` | Get system status |
+| GET | `/api/v1/mcp/health` | Get health status |
 
 ---
 

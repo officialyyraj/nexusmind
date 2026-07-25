@@ -1,0 +1,130 @@
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday
+
+jobs:
+  backend-security:
+    name: Backend Security
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: nexusmind/backend
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: nexusmind/backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install safety bandit pip-audit
+
+      - name: Run safety check
+        run: |
+          safety check --json --output safety-report.json || true
+
+      - name: Upload safety report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: safety-report
+          path: nexusmind/backend/safety-report.json
+          retention-days: 30
+
+      - name: Run Bandit
+        run: |
+          bandit -r app -f json -o bandit-report.json || true
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: nexusmind/backend/bandit-report.json
+          retention-days: 30
+
+      - name: Run pip-audit
+        run: |
+          pip-audit --format=json --output pip-audit-report.json || true
+
+      - name: Upload pip-audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pip-audit-report
+          path: nexusmind/backend/pip-audit-report.json
+          retention-days: 30
+
+  frontend-security:
+    name: Frontend Security
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: nexusmind/frontend
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: nexusmind/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install audit tool
+        run: npm install -g npm-audit
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high --json > npm-audit-report.json || true
+
+      - name: Upload npm audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: npm-audit-report
+          path: nexusmind/frontend/npm-audit-report.json
+          retention-days: 30
+
+  secrets:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run detect-secrets
+        uses:IBM/secrets-scan-action@v1
+
+      - name: Scan for secrets
+        run: |
+          if command -v detect-secrets 2>/dev/null; then
+            detect-secrets scan > secrets-report.json || true
+          fi
+
+      - name: Upload secrets report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secrets-report
+          path: secrets-report.json
+          retention-days: 30

@@ -160,19 +160,19 @@ class DockerSandbox:
             ExecutionResult with stdout, stderr, exit_code, and timing
         """
         start_time = datetime.utcnow()
-        
+
         try:
             container = self._get_container(sandbox_id)
-            
+
             # Use exec_run with stream=False to capture output
             result = container.exec_run(
                 f"bash -c '{command}'",
                 workdir=workdir,
                 demux=True,
             )
-            
+
             execution_time = (datetime.utcnow() - start_time).total_seconds()
-            
+
             # Handle demuxed output (separate stdout/stderr)
             stdout = ""
             stderr = ""
@@ -183,7 +183,7 @@ class DockerSandbox:
                     stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
                 else:
                     stdout = result.output.decode("utf-8", errors="replace")
-            
+
             return ExecutionResult(
                 stdout=stdout,
                 stderr=stderr,
@@ -191,7 +191,7 @@ class DockerSandbox:
                 execution_time=execution_time,
                 timed_out=False,
             )
-            
+
         except Exception as e:
             execution_time = (datetime.utcnow() - start_time).total_seconds()
             return ExecutionResult(
@@ -215,24 +215,24 @@ class DockerSandbox:
         Returns special result if command times out.
         """
         start_time = datetime.utcnow()
-        
+
         try:
             container = self._get_container(sandbox_id)
-            
+
             # Wrap command with timeout
             timeout_command = f"timeout {timeout} bash -c '{command}'"
-            
+
             result = container.exec_run(
                 timeout_command,
                 workdir=workdir,
                 demux=True,
             )
-            
+
             execution_time = (datetime.utcnow() - start_time).total_seconds()
-            
+
             # Check if timed out (exit code 124 from timeout command)
             timed_out = result.exit_code == 124
-            
+
             stdout = ""
             stderr = ""
             if result.output:
@@ -242,10 +242,10 @@ class DockerSandbox:
                     stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
                 else:
                     stdout = result.output.decode("utf-8", errors="replace")
-            
+
             if timed_out:
                 stderr = f"Command timed out after {timeout} seconds\n" + stderr
-            
+
             return ExecutionResult(
                 stdout=stdout,
                 stderr=stderr,
@@ -253,7 +253,7 @@ class DockerSandbox:
                 execution_time=execution_time,
                 timed_out=timed_out,
             )
-            
+
         except Exception as e:
             execution_time = (datetime.utcnow() - start_time).total_seconds()
             return ExecutionResult(
@@ -284,13 +284,13 @@ class DockerSandbox:
             ExecutionResult with stdout/stderr captured
         """
         start_time = datetime.utcnow()
-        
+
         # Encode code to safe format
         encoded_code = base64.b64encode(code.encode()).decode()
-        
+
         try:
             container = self._get_container(sandbox_id)
-            
+
             # Decode and write code, then execute with timeout
             if language == "python":
                 cmd = f"echo '{encoded_code}' | base64 -d > /tmp/execute.py && timeout {timeout} python3 /tmp/execute.py"
@@ -302,16 +302,16 @@ class DockerSandbox:
                 cmd = f"echo '{encoded_code}' | base64 -d > /tmp/execute.ts && timeout {timeout} npx ts-node /tmp/execute.ts"
             else:
                 cmd = f"echo '{encoded_code}' | base64 -d > /tmp/execute && chmod +x /tmp/execute && timeout {timeout} /tmp/execute"
-            
+
             result = container.exec_run(
                 f"bash -c '{cmd}'",
                 workdir=workdir,
                 demux=True,
             )
-            
+
             execution_time = (datetime.utcnow() - start_time).total_seconds()
             timed_out = result.exit_code == 124
-            
+
             stdout = ""
             stderr = ""
             if result.output:
@@ -321,10 +321,10 @@ class DockerSandbox:
                     stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
                 else:
                     stdout = result.output.decode("utf-8", errors="replace")
-            
+
             if timed_out:
                 stderr = f"Execution timed out after {timeout} seconds\n" + stderr
-            
+
             return ExecutionResult(
                 stdout=stdout,
                 stderr=stderr,
@@ -332,7 +332,7 @@ class DockerSandbox:
                 execution_time=execution_time,
                 timed_out=timed_out,
             )
-            
+
         except Exception as e:
             execution_time = (datetime.utcnow() - start_time).total_seconds()
             return ExecutionResult(
@@ -361,7 +361,7 @@ class DockerSandbox:
             ExecutionResult with installation output
         """
         start_time = datetime.utcnow()
-        
+
         if not packages:
             return ExecutionResult(
                 stdout="No packages to install",
@@ -369,10 +369,10 @@ class DockerSandbox:
                 exit_code=0,
                 execution_time=0,
             )
-        
+
         try:
             container = self._get_container(sandbox_id)
-            
+
             if package_manager == PackageManager.PIP:
                 cmd = f"pip install {' '.join(packages)} --quiet"
             elif package_manager == PackageManager.NPM:
@@ -389,16 +389,16 @@ class DockerSandbox:
                     exit_code=1,
                     execution_time=0,
                 )
-            
+
             # Wrap with timeout
             result = container.exec_run(
                 f"timeout {timeout} bash -c '{cmd}'",
                 demux=True,
             )
-            
+
             execution_time = (datetime.utcnow() - start_time).total_seconds()
             timed_out = result.exit_code == 124
-            
+
             stdout = ""
             stderr = ""
             if result.output:
@@ -408,10 +408,10 @@ class DockerSandbox:
                     stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""
                 else:
                     stdout = result.output.decode("utf-8", errors="replace")
-            
+
             if timed_out:
                 stderr = f"Installation timed out after {timeout} seconds\n" + stderr
-            
+
             return ExecutionResult(
                 stdout=stdout,
                 stderr=stderr,
@@ -419,7 +419,7 @@ class DockerSandbox:
                 execution_time=execution_time,
                 timed_out=timed_out,
             )
-            
+
         except Exception as e:
             execution_time = (datetime.utcnow() - start_time).total_seconds()
             return ExecutionResult(
@@ -441,36 +441,36 @@ class DockerSandbox:
         """
         try:
             container = self._get_container(sandbox_id)
-            
+
             # Create exec instance for streaming
             exec_id = container.exec_create(
                 f"timeout {timeout} bash -c '{command}'",
                 demux=True,
                 stream=True,
             )
-            
+
             # Get output stream
             socket = container.client.api.exec_start(exec_id, socket=True)
-            
+
             import select
-            
+
             # Stream with non-blocking reads
             start_time = datetime.utcnow()
             while True:
                 readable, _, _ = select.select([socket], [], [], 1.0)
-                
+
                 if readable:
                     data = socket.recv(4096)
                     if not data:
                         break
-                    
+
                     # Yield chunk
                     yield {
                         "type": "output",
                         "data": data.decode("utf-8", errors="replace"),
                         "time": (datetime.utcnow() - start_time).total_seconds(),
                     }
-                
+
                 # Check timeout
                 elapsed = (datetime.utcnow() - start_time).total_seconds()
                 if elapsed > timeout:
@@ -480,14 +480,14 @@ class DockerSandbox:
                         "time": elapsed,
                     }
                     break
-                    
+
             socket.close()
-            
+
             yield {
                 "type": "complete",
                 "time": (datetime.utcnow() - start_time).total_seconds(),
             }
-            
+
         except Exception as e:
             yield {
                 "type": "error",

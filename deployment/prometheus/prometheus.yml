@@ -1,0 +1,46 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'nexusmind'
+    environment: 'production'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # NexusMind Backend
+  - job_name: 'nexusmind-backend'
+    static_configs:
+      - targets: ['backend:8000']
+    metrics_path: /metrics
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Nginx metrics (if nginx_export enabled)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:9090']
+    scrape_interval: 30s
+
+  # PostgreSQL (if postgres_exporter enabled)
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['db-exporter:9187']
+    scrape_interval: 30s
+
+  # Redis (if redis_exporter enabled)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s

@@ -55,7 +55,7 @@ class IterationStorage:
             Loop ID
         """
         collection = self._collection()
-        
+
         # Save loop metadata
         loop_doc = {
             "loop_id": loop.loop_id,
@@ -69,7 +69,7 @@ class IterationStorage:
             "final_solution": loop.final_solution or "",
             "error": loop.error or "",
         }
-        
+
         collection.add(
             documents=[str(loop_doc)],
             ids=[f"loop_{loop.loop_id}"],
@@ -81,11 +81,11 @@ class IterationStorage:
                 "quality": loop.latest_quality or 0.0,
             }],
         )
-        
+
         # Save each iteration
         for iteration in loop.iterations:
             self._save_iteration(loop.loop_id, iteration)
-        
+
         return loop.loop_id
 
     def _save_iteration(
@@ -100,7 +100,7 @@ class IterationStorage:
             iteration: Iteration to save
         """
         collection = self._collection()
-        
+
         # Create iteration document
         iteration_doc = {
             "loop_id": loop_id,
@@ -110,9 +110,9 @@ class IterationStorage:
             "changes": iteration.changes,
             "quality_score": iteration.critique.quality_score if iteration.critique else 0.0,
         }
-        
+
         iteration_id = f"{loop_id}_iter_{iteration.iteration}"
-        
+
         collection.add(
             documents=[str(iteration_doc)],
             ids=[iteration_id],
@@ -135,21 +135,21 @@ class IterationStorage:
             ImprovementLoop or None
         """
         collection = self._collection()
-        
+
         try:
             result = collection.get(
                 where={"loop_id": loop_id, "type": "loop"},
                 limit=1,
             )
-            
+
             if not result["ids"]:
                 return None
-            
+
             # Get all iterations for this loop
             iterations_result = collection.get(
                 where={"loop_id": loop_id, "type": "iteration"},
             )
-            
+
             # Parse iterations
             iterations = []
             for i, iteration_id in enumerate(iterations_result["ids"]):
@@ -165,14 +165,14 @@ class IterationStorage:
                         suggestions=[],
                     ) if doc.get("quality_score") else None,
                 ))
-            
+
             # Sort by iteration number
             iterations.sort(key=lambda x: x.iteration)
-            
+
             # Parse loop metadata
             loop_doc = eval(result["documents"][0])
             metadata = result["metadatas"][0]
-            
+
             return ImprovementLoop(
                 loop_id=loop_id,
                 task=loop_doc.get("task", ""),
@@ -186,7 +186,7 @@ class IterationStorage:
                 final_solution=loop_doc.get("final_solution") or None,
                 error=loop_doc.get("error") or None,
             )
-            
+
         except Exception:
             return None
 
@@ -205,12 +205,12 @@ class IterationStorage:
             List of iterations
         """
         collection = self._collection()
-        
+
         result = collection.get(
             where={"loop_id": loop_id, "type": "iteration"},
             limit=limit,
         )
-        
+
         iterations = []
         for i, doc_str in enumerate(result["documents"]):
             doc = eval(doc_str)
@@ -220,7 +220,7 @@ class IterationStorage:
                 solution=doc.get("solution", ""),
                 changes=doc.get("changes", ""),
             ))
-        
+
         return sorted(iterations, key=lambda x: x.iteration)
 
     def search_loops(
@@ -242,32 +242,32 @@ class IterationStorage:
             List of loop metadata dicts
         """
         collection = self._collection()
-        
+
         where_filter = {"type": "loop"}
         if status:
             where_filter["status"] = status.value
-        
+
         result = collection.get(
             where=where_filter,
             limit=limit * 2,  # Get more for filtering
         )
-        
+
         loops = []
         for i, metadata in enumerate(result["metadatas"]):
             if metadata.get("type") != "loop":
                 continue
-            
+
             # Apply additional filters
             if min_quality and metadata.get("quality", 0.0) < min_quality:
                 continue
-            
+
             loops.append({
                 "loop_id": metadata.get("loop_id"),
                 "task": metadata.get("task", ""),
                 "status": metadata.get("status"),
                 "quality": metadata.get("quality", 0.0),
             })
-        
+
         return loops[:limit]
 
     def list_recent_loops(self, limit: int = 10) -> list[dict[str, Any]]:
@@ -280,12 +280,12 @@ class IterationStorage:
             List of recent loops
         """
         collection = self._collection()
-        
+
         result = collection.get(
             where={"type": "loop"},
             limit=limit,
         )
-        
+
         loops = []
         for i, metadata in enumerate(result["metadatas"]):
             if metadata.get("type") == "loop":
@@ -295,7 +295,7 @@ class IterationStorage:
                     "status": metadata.get("status"),
                     "quality": metadata.get("quality", 0.0),
                 })
-        
+
         return loops
 
     def delete_loop(self, loop_id: str) -> bool:
@@ -308,16 +308,16 @@ class IterationStorage:
             True if deleted
         """
         collection = self._collection()
-        
+
         # Get all IDs for this loop
         result = collection.get(
             where={"loop_id": loop_id},
         )
-        
+
         if result["ids"]:
             collection.delete(ids=result["ids"])
             return True
-        
+
         return False
 
     def get_statistics(self) -> dict[str, Any]:
@@ -327,21 +327,21 @@ class IterationStorage:
             Statistics dict
         """
         collection = self._collection()
-        
+
         # Count loops
         loops_result = collection.get(where={"type": "loop"})
         total_loops = len(loops_result["ids"])
-        
+
         # Count iterations
         iterations_result = collection.get(where={"type": "iteration"})
         total_iterations = len(iterations_result["ids"])
-        
+
         # Count by status
         status_counts = {}
         for metadata in loops_result["metadatas"]:
             status = metadata.get("status", "unknown")
             status_counts[status] = status_counts.get(status, 0) + 1
-        
+
         # Average quality
         qualities = [
             m.get("quality", 0.0)
@@ -349,7 +349,7 @@ class IterationStorage:
             if m.get("quality") is not None
         ]
         avg_quality = sum(qualities) / len(qualities) if qualities else 0.0
-        
+
         return {
             "total_loops": total_loops,
             "total_iterations": total_iterations,

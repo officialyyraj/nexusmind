@@ -44,20 +44,20 @@ async def planner_node(state: AgentState) -> AgentState:
     """Execute planner agent - decomposes task into structured JSON plan."""
     planner = PlannerAgent(session_id=state.get("session_id"))
     result_state = await planner.execute(state)
-    
+
     # Extract the JSON plan for the next agents
     plan_data = result_state.get("result", {}).get("plan", {})
     result_state["context"]["current_plan"] = plan_data
     result_state["context"]["plan_json"] = result_state.get("result", {}).get("plan_json", "{}")
     result_state["current_agent"] = "planner"
-    
+
     return result_state
 
 
 async def researcher_node(state: AgentState) -> AgentState:
     """Execute researcher agent - gathers information based on plan."""
     researcher = ResearcherAgent(session_id=state.get("session_id"))
-    
+
     # Get the current step from plan if available
     plan_data = state.get("context", {}).get("current_plan", {})
     if plan_data:
@@ -66,21 +66,21 @@ async def researcher_node(state: AgentState) -> AgentState:
         research_steps = [s for s in steps if s.get("agent_type") == "researcher"]
         if research_steps:
             state["context"]["current_step"] = research_steps[0]
-    
+
     result_state = await researcher.execute(state)
     result_state["current_agent"] = "researcher"
-    
+
     # Store research findings in context for coder
     findings = result_state.get("agent_states", {}).get("researcher", {}).get("findings", [])
     result_state["context"]["research_findings"] = findings
-    
+
     return result_state
 
 
 async def coder_node(state: AgentState) -> AgentState:
     """Execute coder agent - implements based on plan and research."""
     coder = CoderAgent(session_id=state.get("session_id"))
-    
+
     # Get the current step from plan if available
     plan_data = state.get("context", {}).get("current_plan", {})
     if plan_data:
@@ -89,15 +89,15 @@ async def coder_node(state: AgentState) -> AgentState:
         coding_steps = [s for s in steps if s.get("agent_type") == "coder"]
         if coding_steps:
             state["context"]["current_step"] = coding_steps[0]
-    
+
     # Add research findings to context
     research_findings = state.get("context", {}).get("research_findings", [])
     if research_findings:
         state["context"]["research_context"] = research_findings
-    
+
     result_state = await coder.execute(state)
     result_state["current_agent"] = "coder"
-    
+
     return result_state
 
 
@@ -196,7 +196,7 @@ class AgentWorkflow:
     def __init__(self, llm_provider: str | None = None, workflow_type: str = "planner_researcher_coder"):
         self.llm_provider = llm_provider
         self.workflow_type = workflow_type
-        
+
         if workflow_type == "planner_researcher_coder":
             self.workflow = create_planner_researcher_coder_workflow()
         elif workflow_type == "full":

@@ -38,9 +38,9 @@ async def generate_project(config: GenerationConfig) -> ProjectGeneration:
         Generation result with status and generated files
     """
     generation = await _generator.generate(config)
-    
+
     _generations[generation.generation_id] = generation
-    
+
     return generation
 
 
@@ -55,17 +55,17 @@ async def generate_project_stream(config: GenerationConfig):
         JSON with generation status
     """
     generation_id = str(uuid.uuid4())
-    
+
     # Generate plan
     plan = await _generator.generate_plan(config)
-    
+
     # Generate files
     output_dir = config.output_directory
     project_dir = Path(output_dir) / plan.project_name.lower().replace(" ", "_")
     project_dir.mkdir(parents=True, exist_ok=True)
-    
+
     files = await _generator.generate_code(plan, output_dir)
-    
+
     return JSONResponse({
         "generation_id": generation_id,
         "project_name": plan.project_name,
@@ -89,7 +89,7 @@ async def get_generation(generation_id: str) -> ProjectGeneration:
     """
     if generation_id not in _generations:
         raise HTTPException(status_code=404, detail="Generation not found")
-    
+
     return _generations[generation_id]
 
 
@@ -105,11 +105,11 @@ async def get_plan(generation_id: str) -> ProjectPlan:
     """
     if generation_id not in _generations:
         raise HTTPException(status_code=404, detail="Generation not found")
-    
+
     generation = _generations[generation_id]
     if not generation.plan:
         raise HTTPException(status_code=404, detail="Plan not available")
-    
+
     return generation.plan
 
 
@@ -125,7 +125,7 @@ async def list_generated_files(generation_id: str) -> list[dict[str, Any]]:
     """
     if generation_id not in _generations:
         raise HTTPException(status_code=404, detail="Generation not found")
-    
+
     generation = _generations[generation_id]
     return [
         {"path": f.path, "exists": Path(f.path).exists()}
@@ -146,11 +146,11 @@ async def get_file_content(generation_id: str, file_path: str) -> dict[str, Any]
     """
     if generation_id not in _generations:
         raise HTTPException(status_code=404, detail="Generation not found")
-    
+
     path = Path(file_path)
     if not path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    
+
     content = path.read_text()
     return {
         "path": str(path),
@@ -175,10 +175,10 @@ async def list_generations(
         List of generations
     """
     generations = list(_generations.values())
-    
+
     if status:
         generations = [g for g in generations if g.status == status]
-    
+
     return generations[-limit:][::-1]
 
 
@@ -207,9 +207,9 @@ async def delete_generation(generation_id: str) -> dict[str, str]:
     """
     if generation_id not in _generations:
         raise HTTPException(status_code=404, detail="Generation not found")
-    
+
     generation = _generations[generation_id]
-    
+
     # Delete generated files
     for file in generation.generated_files:
         path = Path(file.path)
@@ -219,10 +219,10 @@ async def delete_generation(generation_id: str) -> dict[str, str]:
             elif path.is_dir():
                 import shutil
                 shutil.rmtree(path)
-    
+
     # Remove from storage
     del _generations[generation_id]
-    
+
     return {"status": "deleted", "generation_id": generation_id}
 
 

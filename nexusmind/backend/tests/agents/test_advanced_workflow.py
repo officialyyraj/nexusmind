@@ -143,7 +143,7 @@ class TestWorkflowProgress:
             PhaseType.RESEARCH: PhaseResult(phase=PhaseType.RESEARCH, status=TaskStatus.FAILED),
             PhaseType.BACKEND: PhaseResult(phase=PhaseType.BACKEND, status=TaskStatus.COMPLETED),
         }
-        
+
         failed = progress.get_failed_phases()
         assert len(failed) == 1
         assert PhaseType.RESEARCH in failed
@@ -272,13 +272,13 @@ class TestParallelTaskExecutor:
     async def test_execute_single_task(self):
         """Test executing single task."""
         executor = ParallelTaskExecutor()
-        
+
         async def task_func():
             return {"result": "success"}
-        
+
         tasks = [{"id": "task1", "func": task_func}]
         results = await executor.execute(tasks)
-        
+
         assert "task1" in results
         assert results["task1"]["result"] == "success"
 
@@ -286,24 +286,24 @@ class TestParallelTaskExecutor:
     async def test_execute_parallel_tasks(self):
         """Test executing tasks in parallel."""
         executor = ParallelTaskExecutor()
-        
+
         async def slow_task(delay: float):
             async def func():
                 await asyncio.sleep(delay)
                 return {"done": True}
             return func
-        
+
         tasks = [
             {"id": "task1", "func": await slow_task(0.01)},
             {"id": "task2", "func": await slow_task(0.01)},
             {"id": "task3", "func": await slow_task(0.01)},
         ]
-        
+
         import time
         start = time.time()
         results = await executor.execute(tasks)
         elapsed = time.time() - start
-        
+
         # All tasks should complete in roughly the same time (parallel)
         assert elapsed < 0.1
         assert len(results) == 3
@@ -313,7 +313,7 @@ class TestParallelTaskExecutor:
         """Test executing tasks with dependencies."""
         executor = ParallelTaskExecutor()
         execution_order = []
-        
+
         async def make_task(task_id: str, delay: float = 0):
             async def func():
                 if delay:
@@ -321,20 +321,20 @@ class TestParallelTaskExecutor:
                 execution_order.append(task_id)
                 return {"id": task_id}
             return func
-        
+
         tasks = [
             {"id": "task1", "func": await make_task("task1")},
             {"id": "task2", "func": await make_task("task2")},
             {"id": "task3", "func": await make_task("task3")},
         ]
-        
+
         dependencies = {
             "task3": ["task1"],
             "task2": ["task1"],
         }
-        
+
         results = await executor.execute(tasks, dependencies)
-        
+
         assert execution_order[0] == "task1"
         # task2 and task3 should run after task1
         assert set(execution_order[1:]) == {"task2", "task3"}
@@ -343,20 +343,20 @@ class TestParallelTaskExecutor:
     async def test_execute_with_error(self):
         """Test handling task errors."""
         executor = ParallelTaskExecutor()
-        
+
         async def error_task():
             raise ValueError("Task failed")
-        
+
         async def success_task():
             return {"success": True}
-        
+
         tasks = [
             {"id": "error", "func": error_task},
             {"id": "success", "func": success_task},
         ]
-        
+
         results = await executor.execute(tasks)
-        
+
         assert "error" in results
         assert "error" in results["error"]
         assert results["success"]["success"] is True
@@ -368,7 +368,7 @@ class TestAgentTypeImport:
     def test_agent_type_values(self):
         """Test AgentType enum values."""
         from app.agents.types import AgentType
-        
+
         assert AgentType.PLANNER.value == "planner"
         assert AgentType.RESEARCHER.value == "researcher"
         assert AgentType.CODER.value == "coder"

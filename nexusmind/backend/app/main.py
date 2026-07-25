@@ -2,26 +2,34 @@
 
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncGenerator
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.agents import router as agents_router
 from app.api.v1.memory import router as memory_router
 from app.api.v1.plugins import router as plugins_router
+from app.api.v1.mcp import router as mcp_router
 from app.api.v1.sandbox import router as sandbox_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.auth.routes import router as auth_router
 from app.tools.browser.api import router as browser_router
+from app.monitoring.routes import router as monitoring_router
 from app.config import get_settings
-from app.utils.logger import get_logger, set_request_id, setup_logging
+from app.utils.logger import get_logger, set_request_id, setup_logging, generate_request_id
+from app.monitoring.metrics import get_metrics_service
+from app.monitoring.telemetry import get_telemetry_service
 
 # Initialize logging
 setup_logging()
 logger = get_logger(__name__)
+
+# Initialize telemetry
+telemetry = get_telemetry_service()
 
 
 @asynccontextmanager
@@ -32,7 +40,40 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Debug mode: {settings.debug}")
 
+    # Initialize MCP servers
+    try:
+        from app.mcp import get_mcp_manager
+
+        manager = get_mcp_manager()
+
+        # Try to load config from default location
+        config_path = Path("./config/mcp.yaml")
+        if not config_path.exists():
+            config_path = Path("/app/config/mcp.yaml")
+
+        if config_path.exists():
+            config = await manager.load_config(config_path)
+            await manager.initialize(config)
+            await manager.start_all()
+            logger.info(f"MCP initialized with {len(config.servers)} servers")
+        else:
+            await manager.initialize()
+            logger.info("MCP initialized without servers (no config found)")
+
+    except Exception as e:
+        logger.warning(f"MCP initialization failed: {e}")
+
     yield
+
+    # Shutdown MCP servers
+    try:
+        from app.mcp import get_mcp_manager
+
+        manager = get_mcp_manager()
+        await manager.shutdown()
+        logger.info("MCP shutdown complete")
+    except Exception as e:
+        logger.warning(f"MCP shutdown failed: {e}")
 
     logger.info(f"Shutting down {settings.app_name}")
 
@@ -64,7 +105,7 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def add_request_id(request: Request, call_next: Any) -> Any:
         """Add request ID to each request for tracing."""
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        request_id = request.headers.get("X-Request-ID", generate_request_id())
         set_request_id(request_id)
 
         response = await call_next(request)
@@ -81,7 +122,31 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         process_time = time.perf_counter() - start_time
         response.headers["X-Process-Time"] = str(process_time)
+
+        # Record metrics
+        metrics = get_metrics_service()
+        metrics.record_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status=response.status_code,
+            duration=process_time,
+        )
+
         return response
+
+    # Add metrics middleware for error tracking
+    @app.middleware("http")
+    async def track_errors(request: Request, call_next: Any) -> Any:
+        """Track errors in metrics."""
+        try:
+            return await call_next(request)
+        except Exception as e:
+            metrics = get_metrics_service()
+            metrics.record_error(
+                error_type=type(e).__name__,
+                endpoint=request.url.path,
+            )
+            raise
 
     # Register exception handlers
     register_exception_handlers(app)
@@ -96,7 +161,11 @@ def create_app() -> FastAPI:
     app.include_router(memory_router, prefix=f"{api_prefix}/memory")
     app.include_router(plugins_router, prefix=f"{api_prefix}/plugins")
     app.include_router(webhooks_router, prefix=f"{api_prefix}/webhooks")
+    app.include_router(mcp_router, prefix=f"{api_prefix}/mcp")
     app.include_router(browser_router)
+
+    # Include monitoring routes (no prefix for /health, /metrics)
+    app.include_router(monitoring_router)
 
     # Health check endpoint
     @app.get("/health", tags=["health"])

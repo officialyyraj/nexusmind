@@ -36,10 +36,10 @@ async def list_models(provider: ProviderType | None = None) -> list[ModelInfo]:
     """
     router = get_router()
     models = router.get_available_models()
-    
+
     if provider:
         models = [m for m in models if m.provider == provider]
-    
+
     return models
 
 
@@ -54,11 +54,11 @@ async def get_model(model_name: str) -> ModelInfo:
         Model info
     """
     router = get_router()
-    
+
     for model in router.get_available_models():
         if model.name == model_name:
             return model
-    
+
     raise HTTPException(status_code=404, detail="Model not found")
 
 
@@ -93,12 +93,12 @@ async def route_for_agent(
         Route result
     """
     router = get_router()
-    
+
     try:
         agent = AgentType(agent_type)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid agent type: {agent_type}")
-    
+
     return router.route_for_agent(
         agent_type=agent,
         estimated_input_tokens=estimated_input_tokens,
@@ -127,12 +127,12 @@ async def route_for_task(
         Route result
     """
     router = get_router()
-    
+
     try:
         task = TaskType(task_type)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid task type: {task_type}")
-    
+
     request = RouteRequest(
         task_type=task,
         estimated_input_tokens=estimated_input_tokens,
@@ -140,7 +140,7 @@ async def route_for_task(
         prefer_low_cost=prefer_low_cost,
         prefer_low_latency=prefer_low_latency,
     )
-    
+
     return router.route(request)
 
 
@@ -174,14 +174,14 @@ async def record_request(
         Success status
     """
     router = get_router()
-    
+
     try:
         task = TaskType(task_type)
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid task type: {task_type}")
-    
+
     router.record_request(model_name, task_type=task, latency_ms=latency_ms, cost=cost)
-    
+
     return {"recorded": True}
 
 
@@ -202,19 +202,19 @@ async def estimate_cost(
         Cost estimate
     """
     router = get_router()
-    
+
     model = None
     for m in router.get_available_models():
         if m.name == model_name:
             model = m
             break
-    
+
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
-    
+
     cost = router.estimate_cost(model, input_tokens, output_tokens)
     latency = router.estimate_latency(model, input_tokens, output_tokens)
-    
+
     return {
         "model": model_name,
         "input_tokens": input_tokens,

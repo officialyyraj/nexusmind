@@ -15,7 +15,6 @@ from app.plugins.system.manager import (
     PermissionError,
     PluginError,
     PluginManager,
-    PluginManager,
     VersionError,
     get_plugin_manager,
 )

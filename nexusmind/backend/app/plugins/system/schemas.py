@@ -35,19 +35,19 @@ class Permission(str, Enum):
     READ_FILES = "read_files"
     WRITE_FILES = "write_files"
     EXECUTE_CODE = "execute_code"
-    
+
     # Network
     NETWORK_ACCESS = "network_access"
     WEB_SEARCH = "web_search"
-    
+
     # System
     EXECUTE_COMMANDS = "execute_commands"
     ACCESS_SECRETS = "access_secrets"
-    
+
     # Data
     ACCESS_MEMORY = "access_memory"
     ACCESS_SESSIONS = "access_sessions"
-    
+
     # Plugins
     MANAGE_PLUGINS = "manage_plugins"
 
@@ -72,7 +72,7 @@ class Version(BaseModel):
         # Remove npm-style version prefixes
         version = version.lstrip("^~>=")
         version = version.lstrip("v")
-        
+
         parts = version.split("-")
         nums = parts[0].split(".")
         return cls(
@@ -105,7 +105,7 @@ class Dependency(BaseModel):
         """Check if dependency is satisfied."""
         if installed_version is None:
             return self.optional
-        
+
         required = Version.parse(self.version)
         return installed_version.is_compatible(required)
 

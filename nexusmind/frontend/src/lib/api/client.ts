@@ -1,4 +1,5 @@
-import type { Agent, Session, Message, Project, Plugin, MemoryItem, LogEntry, Model } from '@/types';
+import type { Agent, Session, Message, Project, Plugin, MemoryItem, LogEntry, Model, 
+                 MCPServerConfig, MCPServerInfo, MCPServerHealth, MCPTool, MCPToolInvocationResult, MCPStatus } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -50,5 +51,41 @@ export const api = {
   routing: {
     models: () => request<Model[]>('/routing/models'),
     route: (taskType: string) => request<{ model: Model }>('/routing/route', { method: 'POST', body: JSON.stringify({ taskType }) }),
+  },
+  mcp: {
+    // Server management
+    listServers: () => request<MCPServerInfo[]>('/mcp/servers'),
+    listServerConfigs: () => request<MCPServerConfig[]>('/mcp/servers/configs'),
+    getServer: (name: string) => request<MCPServerInfo>(`/mcp/servers/${name}`),
+    addServer: (config: MCPServerConfig) => request<MCPServerInfo>('/mcp/servers', { 
+      method: 'POST', 
+      body: JSON.stringify(config) 
+    }),
+    removeServer: (name: string) => request<void>(`/mcp/servers/${name}`, { method: 'DELETE' }),
+    startServer: (name: string) => request<MCPServerInfo>(`/mcp/servers/${name}/start`, { method: 'POST' }),
+    stopServer: (name: string) => request<void>(`/mcp/servers/${name}/stop`, { method: 'POST' }),
+    restartServer: (name: string) => request<MCPServerInfo>(`/mcp/servers/${name}/restart`, { method: 'POST' }),
+    enableServer: (name: string) => request<MCPServerInfo>(`/mcp/servers/${name}/enable`, { method: 'POST' }),
+    disableServer: (name: string) => request<void>(`/mcp/servers/${name}/disable`, { method: 'POST' }),
+    
+    // Tool management
+    listTools: (serverName?: string) => request<MCPTool[]>(serverName ? `/mcp/tools?server_name=${serverName}` : '/mcp/tools'),
+    getTool: (name: string) => request<MCPTool>(`/mcp/tools/${name}`),
+    discoverTools: (serverName: string) => request<MCPTool[]>(`/mcp/tools/${serverName}/discover`, { method: 'POST' }),
+    executeTool: (name: string, args?: Record<string, unknown>, timeout?: number) => 
+      request<MCPToolInvocationResult>('/mcp/tools/' + name + '/execute', { 
+        method: 'POST', 
+        body: JSON.stringify({ arguments: args, timeout }) 
+      }),
+    
+    // Health and status
+    getStatus: () => request<MCPStatus>('/mcp/status'),
+    getHealth: (serverName?: string) => request<MCPServerHealth | MCPServerHealth[]>(
+      serverName ? `/mcp/health?server_name=${serverName}` : '/mcp/health'
+    ),
+    
+    // Bulk operations
+    startAllServers: () => request<MCPServerInfo[]>('/mcp/start-all', { method: 'POST' }),
+    stopAllServers: () => request<void>('/mcp/stop-all', { method: 'POST' }),
   },
 };

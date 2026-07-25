@@ -42,7 +42,7 @@ class TestProjectGenerator:
         analysis = self.generator._analyze_prompt(
             "Create a Python FastAPI web application"
         )
-        
+
         assert analysis["language"] == "python"
         assert analysis["framework"] == "fastapi"
         # Default is WEB_APP unless api/rest is mentioned
@@ -52,7 +52,7 @@ class TestProjectGenerator:
         analysis = self.generator._analyze_prompt(
             "Build a TypeScript Express API"
         )
-        
+
         assert analysis["language"] == "typescript"
         assert analysis["framework"] == "express"
         assert analysis["project_type"] == ProjectType.API_SERVICE
@@ -62,7 +62,7 @@ class TestProjectGenerator:
         analysis = self.generator._analyze_prompt(
             "Create a FastAPI app with PostgreSQL"
         )
-        
+
         assert analysis["database"] == "postgresql"
 
     def test_analyze_prompt_microservice(self):
@@ -70,7 +70,7 @@ class TestProjectGenerator:
         analysis = self.generator._analyze_prompt(
             "Build a microservice in Go"
         )
-        
+
         assert analysis["language"] == "go"
         assert analysis["framework"] == "gin"
 
@@ -81,9 +81,9 @@ class TestProjectGenerator:
             project_type=ProjectType.WEB_APP,
         )
         analysis = self.generator._analyze_prompt("Create a web app")
-        
+
         stack = self.generator._create_tech_stack(analysis, config)
-        
+
         assert stack.language == "python"
         assert stack.framework == "fastapi"
         assert "pytest" in stack.testing
@@ -95,18 +95,18 @@ class TestProjectGenerator:
             project_type=ProjectType.API_SERVICE,
         )
         analysis = {"language": "go", "framework": "gin"}
-        
+
         stack = self.generator._create_tech_stack(analysis, config)
-        
+
         assert stack.language == "go"
         assert stack.framework == "gin"
 
     def test_create_folder_structure_python(self):
         """Test folder structure creation for Python."""
         stack = TechStack(language="python", framework="fastapi")
-        
+
         structure = self.generator._create_folder_structure(stack)
-        
+
         assert "app" in structure.directories
         assert "tests" in structure.directories
         assert "requirements.txt" in [f["path"] for f in structure.files]
@@ -114,16 +114,16 @@ class TestProjectGenerator:
     def test_create_folder_structure_typescript(self):
         """Test folder structure creation for TypeScript."""
         stack = TechStack(language="typescript", framework="nextjs")
-        
+
         structure = self.generator._create_folder_structure(stack)
-        
+
         assert "src" in structure.directories
         assert "package.json" in [f["path"] for f in structure.files]
 
     def test_create_milestones(self):
         """Test milestone creation."""
         milestones = self.generator._create_milestones(ProjectType.WEB_APP)
-        
+
         assert len(milestones) == 4
         assert milestones[0].name == "Project Setup"
         assert milestones[1].name == "Core Implementation"
@@ -132,7 +132,7 @@ class TestProjectGenerator:
         """Test task creation."""
         stack = TechStack(language="python", framework="fastapi")
         tasks = self.generator._create_tasks(ProjectType.WEB_APP, stack)
-        
+
         assert len(tasks) > 0
         assert any(t.title == "Initialize project structure" for t in tasks)
         assert any(t.title == "Write unit tests" for t in tasks)
@@ -144,9 +144,9 @@ class TestProjectGenerator:
             framework="fastapi",
             database="postgresql",
         )
-        
+
         deps = self.generator._create_dependencies(stack)
-        
+
         assert len(deps) > 0
         assert any(d.package == "fastapi" for d in deps)
         assert any(d.package == "asyncpg" for d in deps)
@@ -175,9 +175,9 @@ class TestProjectGenerator:
                 TechStack(language="python")
             ),
         )
-        
+
         content = self.generator._generate_main_file(plan)
-        
+
         assert "FastAPI" in content
         assert "Test Project" in content
         assert "uvicorn" in content
@@ -193,9 +193,9 @@ class TestProjectGenerator:
                 TechStack(language="typescript")
             ),
         )
-        
+
         content = self.generator._generate_main_file(plan)
-        
+
         assert "express" in content
         assert "Welcome to the API" in content
 
@@ -210,9 +210,9 @@ class TestProjectGenerator:
                 TechStack(language="go")
             ),
         )
-        
+
         content = self.generator._generate_main_file(plan)
-        
+
         assert "package main" in content
         assert "Welcome" in content
 
@@ -227,9 +227,9 @@ class TestProjectGenerator:
                 TechStack(language="python")
             ),
         )
-        
+
         content = self.generator._generate_requirements(plan)
-        
+
         assert "fastapi" in content
         assert "pytest" in content
 
@@ -244,9 +244,9 @@ class TestProjectGenerator:
                 TechStack(language="typescript")
             ),
         )
-        
+
         content = self.generator._generate_requirements(plan)
-        
+
         assert "express" in content
         assert "jest" in content
 
@@ -261,9 +261,9 @@ class TestProjectGenerator:
                 TechStack(language="python")
             ),
         )
-        
+
         content = self.generator._generate_readme(plan)
-        
+
         assert "# My Project" in content
         assert "## Tech Stack" in content
         assert "## Getting Started" in content
@@ -279,9 +279,9 @@ class TestProjectGenerator:
                 TechStack(language="python")
             ),
         )
-        
+
         content = self.generator._generate_gitignore(plan)
-        
+
         assert ".env" in content
         assert "__pycache__" in content
         assert "node_modules" in content
@@ -297,9 +297,9 @@ class TestProjectGenerator:
                 TechStack(language="python")
             ),
         )
-        
+
         content = self.generator._generate_dockerfile(plan)
-        
+
         assert "python" in content
         assert "pip install" in content
         assert "uvicorn" in content
@@ -315,9 +315,9 @@ class TestProjectGenerator:
                 TechStack(language="python")
             ),
         )
-        
+
         content = self.generator._generate_ci_workflow(plan)
-        
+
         assert "pytest" in content
         assert "ubuntu-latest" in content
 
@@ -329,9 +329,9 @@ class TestProjectGenerator:
             project_type=ProjectType.WEB_APP,
             description="A test web application",
         )
-        
+
         plan = await self.generator.generate_plan(config)
-        
+
         assert plan.project_name == "My Project"
         assert plan.project_type == ProjectType.WEB_APP
         assert len(plan.milestones) > 0
@@ -347,12 +347,12 @@ class TestProjectGenerator:
             description="A test project",
             output_directory=self.temp_dir,
         )
-        
+
         plan = await self.generator.generate_plan(config)
         files = await self.generator.generate_code(plan, self.temp_dir)
-        
+
         assert len(files) > 0
-        
+
         # Check some files exist
         for file_path in files:
             if "main.py" in file_path or "README.md" in file_path:
@@ -371,9 +371,9 @@ class TestProjectGenerator:
             generate_tests=True,
             generate_ci=True,
         )
-        
+
         result = await self.generator.generate(config)
-        
+
         assert result.status == ProjectStatus.COMPLETED
         assert len(result.generated_files) > 0
         assert result.progress_percent == 100.0
@@ -401,7 +401,7 @@ class TestGenerationSchemas:
             framework="fastapi",
             database="postgresql",
         )
-        
+
         assert stack.language == "python"
         assert stack.framework == "fastapi"
         assert stack.database == "postgresql"
@@ -414,7 +414,7 @@ class TestGenerationSchemas:
             description="A test milestone",
             tasks=["t1", "t2"],
         )
-        
+
         assert milestone.id == "m1"
         assert len(milestone.tasks) == 2
 
@@ -427,7 +427,7 @@ class TestGenerationSchemas:
             priority=1,
             estimated_hours=2.0,
         )
-        
+
         assert task.id == "t1"
         assert task.priority == 1
         assert task.estimated_hours == 2.0
@@ -440,7 +440,7 @@ class TestGenerationSchemas:
             generate_docker=True,
             generate_ci=True,
         )
-        
+
         assert config.project_name == "Test"
         assert config.generate_docker is True
 
@@ -467,13 +467,13 @@ class TestIntegration:
             description="A FastAPI application with PostgreSQL",
             output_directory=self.temp_dir,
         )
-        
+
         result = await self.generator.generate(config)
-        
+
         assert result.status == ProjectStatus.COMPLETED
         assert result.plan is not None
         assert len(result.generated_files) > 0
-        
+
         # Check key files exist
         project_dir = Path(self.temp_dir) / "my_fastapi_app"
         assert (project_dir / "main.py").exists()
@@ -490,11 +490,11 @@ class TestIntegration:
             description="A TypeScript Express API",
             output_directory=self.temp_dir,
         )
-        
+
         result = await self.generator.generate(config)
-        
+
         assert result.status == ProjectStatus.COMPLETED
-        
+
         project_dir = Path(self.temp_dir) / "my_express_api"
         assert (project_dir / "src" / "index.ts").exists()
         assert (project_dir / "package.json").exists()
@@ -508,11 +508,11 @@ class TestIntegration:
             description="A Go Gin microservice",
             output_directory=self.temp_dir,
         )
-        
+
         result = await self.generator.generate(config)
-        
+
         assert result.status == ProjectStatus.COMPLETED
-        
+
         project_dir = Path(self.temp_dir) / "my_gin_service"
         assert (project_dir / "cmd" / "main.go").exists()
         assert (project_dir / "go.mod").exists()

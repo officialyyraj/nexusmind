@@ -31,9 +31,9 @@ class TavilyProvider:
             Search response
         """
         start_time = time.time()
-        
+
         url = f"{self.BASE_URL}/search"
-        
+
         params = {
             "api_key": self.api_key,
             "query": request.query,
@@ -42,15 +42,15 @@ class TavilyProvider:
             "include_answer": request.include_answer,
             "include_raw_content": request.include_raw_content,
         }
-        
+
         if request.topic != "general":
             params["topic"] = request.topic
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(url, json=params)
             response.raise_for_status()
             data = response.json()
-        
+
         results = []
         for item in data.get("results", []):
             results.append(SearchResult(
@@ -61,9 +61,9 @@ class TavilyProvider:
                 published_date=item.get("published_date"),
                 provider=SearchProvider.TAVILY,
             ))
-        
+
         execution_time = time.time() - start_time
-        
+
         return SearchResponse(
             query=request.query,
             results=results,

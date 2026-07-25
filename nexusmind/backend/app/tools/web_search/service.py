@@ -67,18 +67,18 @@ class SearchCache:
     ) -> SearchResponse | None:
         """Get cached result."""
         key = self._make_key(query, provider)
-        
+
         async with self._lock:
             entry = self._cache.get(key)
-            
+
             if entry is None:
                 return None
-            
+
             # Check if expired
             if datetime.utcnow() > entry.timestamp + timedelta(seconds=entry.ttl_seconds):
                 del self._cache[key]
                 return None
-            
+
             return SearchResponse(
                 query=entry.query,
                 results=entry.results,
@@ -96,7 +96,7 @@ class SearchCache:
         """Cache a response."""
         key = self._make_key(response.query, response.provider)
         ttl = ttl_seconds or self._ttl_seconds
-        
+
         async with self._lock:
             self._cache[key] = SearchCacheEntry(
                 query=response.query,
@@ -115,15 +115,15 @@ class SearchCache:
         """Remove expired entries and return count."""
         now = datetime.utcnow()
         expired_keys = []
-        
+
         async with self._lock:
             for key, entry in self._cache.items():
                 if now > entry.timestamp + timedelta(seconds=entry.ttl_seconds):
                     expired_keys.append(key)
-            
+
             for key in expired_keys:
                 del self._cache[key]
-        
+
         return len(expired_keys)
 
 
@@ -132,7 +132,7 @@ class WebSearchService:
 
     def __init__(self, config: SearchConfig | None = None):
         self.config = config or SearchConfig()
-        
+
         # Initialize providers
         self._providers: dict[SearchProvider, Any] = {}
         self._rate_limiter = RateLimiter(self.config.rate_limit_requests)
@@ -142,7 +142,7 @@ class WebSearchService:
         """Get or create provider instance."""
         if provider is None:
             provider = self.config.default_provider
-        
+
         if provider not in self._providers:
             if provider == SearchProvider.TAVILY:
                 if not self.config.tavily_api_key:
@@ -154,7 +154,7 @@ class WebSearchService:
                 self._providers[provider] = BraveProvider(self.config.brave_api_key)
             elif provider == SearchProvider.DUCKDUCKGO:
                 self._providers[provider] = DuckDuckGoProvider()
-        
+
         return self._providers[provider]
 
     async def _execute_with_retries(
@@ -172,7 +172,7 @@ class WebSearchService:
             Search response
         """
         last_error = None
-        
+
         for attempt in range(self.config.max_retries):
             try:
                 return await provider.search(request)
@@ -183,12 +183,12 @@ class WebSearchService:
                     raise
             except Exception as e:
                 last_error = e
-            
+
             # Wait before retry (exponential backoff)
             if attempt < self.config.max_retries - 1:
                 delay = self.config.retry_delay_seconds * (2 ** attempt)
                 await asyncio.sleep(delay)
-        
+
         raise last_error
 
     async def search(self, request: SearchRequest) -> SearchResponse:
@@ -201,21 +201,21 @@ class WebSearchService:
             Search response with results
         """
         provider = self._get_provider(request.provider)
-        
+
         # Check cache first
         cached = await self._cache.get(request.query, request.provider or self.config.default_provider)
         if cached:
             return cached
-        
+
         # Apply rate limiting
         await self._rate_limiter.acquire()
-        
+
         # Execute search with retries
         response = await self._execute_with_retries(provider, request)
-        
+
         # Cache the result
         await self._cache.set(response)
-        
+
         return response
 
     async def search_multi(
@@ -239,7 +239,7 @@ class WebSearchService:
                 provider=provider,
             )
             tasks.append(self.search(request))
-        
+
         return await asyncio.gather(*tasks, return_exceptions=True)
 
     async def summarize_results(
@@ -258,21 +258,21 @@ class WebSearchService:
         """
         if not response.results:
             return "No results found."
-        
+
         lines = [f"Found {response.total} results from {response.provider.value}:\n"]
-        
+
         for i, result in enumerate(response.results[:5], 1):
             title = result.title[:80] + "..." if len(result.title) > 80 else result.title
             lines.append(f"{i}. {title}")
             lines.append(f"   {result.url}")
             snippet = result.snippet[:150] + "..." if len(result.snippet) > 150 else result.snippet
             lines.append(f"   {snippet}\n")
-        
+
         summary = "\n".join(lines)
-        
+
         if len(summary) > max_length:
             summary = summary[:max_length] + "..."
-        
+
         return summary
 
     async def clear_cache(self) -> None:

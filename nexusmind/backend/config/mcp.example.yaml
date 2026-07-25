@@ -1,0 +1,54 @@
+# MCP Configuration for NexusMind
+# Copy this file to mcp.yaml and customize as needed
+
+# Enable/disable MCP integration
+enabled: true
+
+# Default timeout for tool invocations (seconds)
+default_timeout: 30
+
+# Auto-discover tools when servers start
+auto_discover: true
+
+# MCP Server Configurations
+servers:
+  # Example: Filesystem server
+  # filesystem:
+  #   name: filesystem
+  #   transport: stdio
+  #   command: npx
+  #   args:
+  #     - "-y"
+  #     - "@modelcontextprotocol/server-filesystem"
+  #     - "/workspace"
+  #   enabled: true
+  #   trusted: true
+  #   auto_reconnect: true
+  #   health_check_interval: 30
+  #   timeout: 30
+  #   allowlist: []  # Empty = allow all tools
+  #   blocklist: []   # Empty = block no tools
+
+  # Example: GitHub server
+  # github:
+  #   name: github
+  #   transport: stdio
+  #   command: npx
+  #   args:
+  #     - "-y"
+  #     - "@modelcontextprotocol/server-github"
+  #   enabled: true
+  #   trusted: true
+  #   env:
+  #     GITHUB_TOKEN: "${GITHUB_TOKEN}"  # Use environment variable
+
+  # Example: HTTP server
+  # custom_http:
+  #   name: custom_http
+  #   transport: http
+  #   url: "https://api.example.com/mcp"
+  #   headers:
+  #     Authorization: "Bearer ${API_TOKEN}"
+  #   enabled: true
+  #   trusted: false
+  #   timeout: 60

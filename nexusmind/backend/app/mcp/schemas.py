@@ -38,6 +38,12 @@ class MCPServerConfig(BaseModel):
     url: str | None = Field(None, description="URL for HTTP transport")
     headers: dict[str, str] = Field(default_factory=dict, description="HTTP headers")
     enabled: bool = Field(True, description="Whether server is enabled")
+    trusted: bool = Field(True, description="Whether server is trusted")
+    auto_reconnect: bool = Field(True, description="Auto-reconnect on disconnect")
+    health_check_interval: int = Field(30, description="Health check interval in seconds")
+    timeout: int = Field(30, description="Default timeout for tool invocations")
+    allowlist: list[str] = Field(default_factory=list, description="Allowed tool names (empty = all)")
+    blocklist: list[str] = Field(default_factory=list, description="Blocked tool names")
 
 
 class MCPServerList(BaseModel):
@@ -58,6 +64,19 @@ class MCPServerInfo(BaseModel):
     tools_count: int
     started_at: datetime | None = None
     last_error: str | None = None
+    trusted: bool = True
+    allowlist: list[str] = Field(default_factory=list)
+    blocklist: list[str] = Field(default_factory=list)
+
+
+class MCPServerHealth(BaseModel):
+    """Health check result for an MCP server."""
+
+    server_name: str
+    healthy: bool
+    latency_ms: float | None = None
+    last_check: datetime | None = None
+    error: str | None = None
 
 
 # ==================== Tool Definitions ====================
@@ -82,6 +101,10 @@ class MCPTool(BaseModel):
     server_name: str = Field(..., description="Server providing this tool")
     input_schema: dict[str, Any] = Field(default_factory=dict, description="JSON Schema for input")
     parameters: list[MCPToolParameter] = Field(default_factory=list, description="Tool parameters")
+    version: str | None = Field(None, description="Tool version")
+    tags: list[str] = Field(default_factory=list, description="Tool tags for categorization")
+    permissions: list[str] = Field(default_factory=list, description="Required permissions")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
 
 class MCPToolList(BaseModel):

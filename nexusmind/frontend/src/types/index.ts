@@ -4,6 +4,8 @@ export type AgentStatus = 'idle' | 'running' | 'paused' | 'error' | 'completed';
 export type AgentType = 'planner' | 'researcher' | 'coder' | 'reviewer' | 'tester' | 'documentation' | 'manager';
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type SessionStatus = 'active' | 'paused' | 'completed';
+export type TransportType = 'stdio' | 'http' | 'sse';
+export type ServerStatus = 'stopped' | 'starting' | 'running' | 'error';
 
 export interface Agent {
   id: string;
@@ -179,4 +181,229 @@ export interface GitCommit {
   message: string;
   author: string;
   timestamp: string;
+}
+
+// Workflow and Agent Visualization Types
+
+export type NodeStatus = 'idle' | 'running' | 'waiting' | 'completed' | 'failed' | 'retrying';
+export type ExecutionPhase = 'start' | 'planning' | 'research' | 'coding' | 'review' | 'testing' | 'documentation' | 'complete';
+
+export interface WorkflowExecution {
+  id: string;
+  name: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  startedAt: string;
+  completedAt?: string;
+  duration?: number;
+  nodes: WorkflowNodeState[];
+  edges: WorkflowEdgeState[];
+  currentNode?: string;
+  progress: number;
+  projectId?: string;
+  sessionId?: string;
+  model?: string;
+}
+
+export interface WorkflowNodeState {
+  id: string;
+  name: string;
+  type: 'planner' | 'researcher' | 'coder' | 'reviewer' | 'tester' | 'documentation' | 'manager' | 'input' | 'output' | 'condition' | 'tool';
+  status: NodeStatus;
+  position: { x: number; y: number };
+  assignedAgent?: string;
+  currentTask?: string;
+  currentTool?: string;
+  progress: number;
+  retryCount: number;
+  maxRetries: number;
+  startedAt?: string;
+  completedAt?: string;
+  duration?: number;
+  output?: string;
+  error?: string;
+  tokenUsage?: TokenUsage;
+  memoryLookups?: MemoryAccess[];
+  recentActions?: Action[];
+  logs?: string[];
+}
+
+export interface WorkflowEdgeState {
+  id: string;
+  source: string;
+  target: string;
+  status: 'pending' | 'active' | 'completed' | 'skipped';
+  type?: 'default' | 'success' | 'error' | 'condition';
+  label?: string;
+}
+
+export interface AgentInspector {
+  id: string;
+  name: string;
+  type: string;
+  model: string;
+  status: NodeStatus;
+  currentTask?: string;
+  currentTool?: string;
+  memoryLookups: MemoryAccess[];
+  tokenUsage?: TokenUsage;
+  duration?: number;
+  recentActions: Action[];
+  output?: string;
+  errors: string[];
+  metrics: AgentMetrics;
+}
+
+export interface MemoryAccess {
+  id: string;
+  type: 'fact' | 'preference' | 'context' | 'knowledge';
+  content: string;
+  accessedAt: string;
+  accessCount: number;
+}
+
+export interface Action {
+  id: string;
+  type: 'tool' | 'memory' | 'file' | 'message' | 'decision';
+  description: string;
+  timestamp: string;
+  duration?: number;
+  success: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface AgentMetrics {
+  cpuUsage: number;
+  memoryUsage: number;
+  tokensPerSecond?: number;
+  tasksCompleted: number;
+  tasksFailed: number;
+}
+
+export interface TimelineEvent {
+  id: string;
+  phase: ExecutionPhase;
+  nodeId?: string;
+  nodeName?: string;
+  status: 'started' | 'completed' | 'failed' | 'skipped';
+  timestamp: string;
+  duration?: number;
+  details?: string;
+}
+
+export interface LogCorrelation {
+  logId: string;
+  nodeId: string;
+  nodeName: string;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  message: string;
+  timestamp: string;
+  relatedFiles?: string[];
+  relatedMemory?: string[];
+  relatedTools?: string[];
+}
+
+export interface WorkflowFilter {
+  agentIds?: string[];
+  statuses?: NodeStatus[];
+  projectId?: string;
+  sessionId?: string;
+  model?: string;
+  searchQuery?: string;
+}
+
+export interface WorkflowExport {
+  format: 'json' | 'png' | 'svg';
+  includeLogs: boolean;
+  includeMetrics: boolean;
+  includeTimeline: boolean;
+}
+
+// MCP Types
+
+export interface MCPServerConfig {
+  name: string;
+  transport: TransportType;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  enabled: boolean;
+  trusted: boolean;
+  auto_reconnect: boolean;
+  health_check_interval: number;
+  timeout: number;
+  allowlist: string[];
+  blocklist: string[];
+}
+
+export interface MCPServerInfo {
+  name: string;
+  status: ServerStatus;
+  transport: TransportType;
+  tools_count: number;
+  started_at?: string;
+  last_error?: string;
+  trusted: boolean;
+  allowlist: string[];
+  blocklist: string[];
+}
+
+export interface MCPServerHealth {
+  server_name: string;
+  healthy: boolean;
+  latency_ms?: number;
+  last_check?: string;
+  error?: string;
+}
+
+export interface MCPToolParameter {
+  name: string;
+  type: string;
+  description?: string;
+  required: boolean;
+  default?: unknown;
+  enum?: unknown[];
+}
+
+export interface MCPTool {
+  name: string;
+  description: string;
+  server_name: string;
+  input_schema: Record<string, unknown>;
+  parameters: MCPToolParameter[];
+  version?: string;
+  tags: string[];
+  permissions: string[];
+  metadata: Record<string, unknown>;
+}
+
+export interface MCPToolInvocationResult {
+  success: boolean;
+  tool_name: string;
+  result?: unknown;
+  error?: string;
+  execution_time: number;
+  server_name: string;
+}
+
+export interface MCPStatus {
+  enabled: boolean;
+  initialized: boolean;
+  servers: {
+    total: number;
+    running: number;
+    error: number;
+  };
+  tools: {
+    total: number;
+    by_server: Record<string, number>;
+  };
+}
+
+export interface MCPConfig {
+  enabled: boolean;
+  servers: MCPServerConfig[];
+  default_timeout: number;
+  auto_discover: boolean;
 }

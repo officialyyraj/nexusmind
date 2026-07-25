@@ -92,17 +92,17 @@ class TestRateLimiter:
     async def test_rate_limiting(self):
         """Test rate limiting behavior."""
         limiter = RateLimiter(requests_per_minute=2)
-        
+
         # Should allow 2 requests
         await limiter.acquire()
         await limiter.acquire()
-        
+
         # Third request should wait
         import asyncio
         start = asyncio.get_event_loop().time()
         await limiter.acquire()
         elapsed = asyncio.get_event_loop().time() - start
-        
+
         # Should have waited a bit
         assert elapsed > 0
 
@@ -133,9 +133,9 @@ class TestSearchCache:
             provider=SearchProvider.DUCKDUCKGO,
             execution_time=0.1,
         )
-        
+
         await cache.set(response)
-        
+
         # Should be able to get it back
         cached = await cache.get("test", SearchProvider.DUCKDUCKGO)
         assert cached is not None
@@ -166,10 +166,10 @@ class TestSearchCache:
             provider=SearchProvider.DUCKDUCKGO,
             execution_time=0.1,
         )
-        
+
         await cache.set(response)
         await cache.clear()
-        
+
         cached = await cache.get("test", SearchProvider.DUCKDUCKGO)
         assert cached is None
 
@@ -213,10 +213,10 @@ class TestWebSearchService:
             brave_api_key=None,
         )
         service = WebSearchService(config)
-        
+
         with pytest.raises(ValueError, match="Tavily API key"):
             service._get_provider(SearchProvider.TAVILY)
-        
+
         with pytest.raises(ValueError, match="Brave API key"):
             service._get_provider(SearchProvider.BRAVE)
 
@@ -244,7 +244,7 @@ class TestWebSearchService:
             provider=SearchProvider.DUCKDUCKGO,
             execution_time=0.5,
         )
-        
+
         summary = await service.summarize_results(response)
         assert "Found 2 results" in summary
         assert "Python Tutorial" in summary
@@ -260,7 +260,7 @@ class TestWebSearchService:
             provider=SearchProvider.DUCKDUCKGO,
             execution_time=0.1,
         )
-        
+
         summary = await service.summarize_results(response)
         assert "No results found" in summary
 

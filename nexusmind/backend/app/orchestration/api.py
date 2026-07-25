@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from sse_starlette.sse import EventSourceResponse
+from fastapi.responses import JSONResponse
 
 from app.orchestration.generation_schemas import (
     GenerationConfig,
@@ -52,70 +52,29 @@ async def generate_project_stream(config: GenerationConfig):
         config: Project generation configuration
         
     Returns:
-        Server-sent events with progress updates
+        JSON with generation status
     """
     generation_id = str(uuid.uuid4())
     
-    async def event_generator():
-        try:
-            # Send initial status
-            yield {
-                "event": "status",
-                "data": json.dumps({"status": "planning", "progress": 0}),
-            }
-            
-            # Generate plan
-            plan = await _generator.generate_plan(config)
-            yield {
-                "event": "plan",
-                "data": json.dumps(plan.model_dump()),
-            }
-            
-            yield {
-                "event": "status",
-                "data": json.dumps({"status": "generating", "progress": 10}),
-            }
-            
-            # Generate files
-            output_dir = config.output_directory
-            project_dir = Path(output_dir) / plan.project_name.lower().replace(" ", "_")
-            project_dir.mkdir(parents=True, exist_ok=True)
-            
-            files = await _generator.generate_code(plan, output_dir)
-            
-            for i, file_path in enumerate(files):
-                progress = 10 + int((i + 1) / len(files) * 80)
-                yield {
-                    "event": "file",
-                    "data": json.dumps({
-                        "path": file_path,
-                        "progress": progress,
-                    }),
-                }
-            
-            # Complete
-            yield {
-                "event": "status",
-                "data": json.dumps({"status": "completed", "progress": 100}),
-            }
-            
-            yield {
-                "event": "complete",
-                "data": json.dumps({
-                    "generation_id": generation_id,
-                    "project_name": plan.project_name,
-                    "output_directory": str(project_dir),
-                    "files_generated": len(files),
-                }),
-            }
-            
-        except Exception as e:
-            yield {
-                "event": "error",
-                "data": json.dumps({"error": str(e)}),
-            }
+    # Generate plan
+    plan = await _generator.generate_plan(config)
     
-    return EventSourceResponse(event_generator())
+    # Generate files
+    output_dir = config.output_directory
+    project_dir = Path(output_dir) / plan.project_name.lower().replace(" ", "_")
+    project_dir.mkdir(parents=True, exist_ok=True)
+    
+    files = await _generator.generate_code(plan, output_dir)
+    
+    return JSONResponse({
+        "generation_id": generation_id,
+        "project_name": plan.project_name,
+        "output_directory": str(project_dir),
+        "files_generated": len(files),
+        "status": "completed",
+        "plan": plan.model_dump(),
+        "files": files,
+    })
 
 
 @router.get("/{generation_id}")

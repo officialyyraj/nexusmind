@@ -388,3 +388,135 @@ class WebhookRotateSecretResponse(BaseModel):
     id: str
     new_secret: str | None = None
     rotated_at: datetime
+
+
+# ==================== Execution Schemas ====================
+
+
+class ExecutionStateEnum(str, Enum):
+    """Execution lifecycle states."""
+    
+    QUEUED = "queued"
+    STARTING = "starting"
+    PLANNING = "planning"
+    RESEARCHING = "researching"
+    CODING = "coding"
+    REVIEWING = "reviewing"
+    TESTING = "testing"
+    DOCUMENTING = "documenting"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    PAUSED = "paused"
+    RESUMING = "resuming"
+
+
+class ExecutionStepResponse(BaseModel):
+    """Execution step response."""
+    
+    id: str
+    execution_id: str
+    step_order: int
+    agent_type: str
+    description: str
+    state: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    duration_ms: int | None = None
+    retry_count: int = 0
+    result: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class ExecutionLogResponse(BaseModel):
+    """Execution log entry response."""
+    
+    id: str
+    execution_id: str
+    step_id: str | None = None
+    level: str
+    message: str
+    details: dict[str, Any] | None = None
+    agent_type: str | None = None
+    action: str | None = None
+    timestamp: datetime | None = None
+
+
+class ExecutionResponse(BaseModel):
+    """Execution response model."""
+    
+    id: str
+    session_id: str
+    workflow_id: str | None = None
+    task: str
+    state: str
+    current_agent: str | None = None
+    current_step_index: int = 0
+    total_steps: int = 0
+    progress_percent: int = 0
+    retry_count: int = 0
+    max_retries: int = 3
+    duration_seconds: int | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    error: str | None = None
+    error_type: str | None = None
+    is_cancelled: bool = False
+    can_retry: bool = False
+    created_at: datetime | None = None
+    
+    class Config:
+        from_attributes = True
+
+
+class ExecutionDetailResponse(ExecutionResponse):
+    """Detailed execution response with all metadata."""
+    
+    prompt: str | None = None
+    agent_types: list[str] = Field(default_factory=list)
+    previous_state: str | None = None
+    state_changed_at: datetime | None = None
+    last_checkpoint_at: datetime | None = None
+    checkpoint_data: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    error_details: dict[str, Any] | None = None
+    retry_history: list[dict[str, Any]] = Field(default_factory=list)
+    agent_timings: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    cancelled_at: datetime | None = None
+    cancelled_by: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutionListResponse(BaseModel):
+    """List of executions response."""
+    
+    executions: list[ExecutionResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class ExecutionCreateRequest(BaseModel):
+    """Request to create a new execution."""
+    
+    session_id: str = Field(..., description="Session ID to execute in")
+    task: str = Field(..., description="Task description")
+    prompt: str | None = Field(None, description="Optional prompt override")
+    agent_types: list[str] | None = Field(None, description="Specific agent types to use")
+    max_retries: int = Field(3, description="Maximum retry attempts per step")
+    workflow_id: str | None = Field(None, description="Optional workflow identifier")
+
+
+class ExecutionCancelRequest(BaseModel):
+    """Request to cancel an execution."""
+    
+    cancelled_by: str = Field("user", description="Who initiated cancellation")
+
+
+class ExecutionRetryResponse(BaseModel):
+    """Response when retrying an execution."""
+    
+    execution_id: str
+    retry_count: int
+    success: bool
+    message: str

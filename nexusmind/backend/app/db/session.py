@@ -88,6 +88,7 @@ class Session(Base, TimestampMixin):
     artifacts = relationship("Artifact", back_populates="session", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="session", cascade="all, delete-orphan")
     agent_logs = relationship("AgentLog", back_populates="session", cascade="all, delete-orphan")
+    executions = relationship("Execution", back_populates="session", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Session {self.id} ({self.status})>"

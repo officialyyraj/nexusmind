@@ -85,6 +85,9 @@ class ConnectionManager:
         message: str,
         level: str = "INFO",
         agent_id: str | None = None,
+        execution_id: str | None = None,
+        agent_type: str | None = None,
+        details: dict[str, Any] | None = None,
     ) -> None:
         """Broadcast a log entry to session connections."""
         await self.send_to_session(
@@ -95,7 +98,61 @@ class ConnectionManager:
                     "level": level,
                     "message": message,
                     "agent_id": agent_id,
+                    "execution_id": execution_id,
+                    "agent_type": agent_type,
+                    "details": details,
                 },
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            },
+        )
+
+    async def broadcast_execution_update(
+        self,
+        session_id: str,
+        data: dict[str, Any],
+    ) -> None:
+        """Broadcast execution state update to session connections."""
+        await self.send_to_session(
+            session_id,
+            {
+                "type": "execution_update",
+                "data": data,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            },
+        )
+
+    async def broadcast_agent_event(
+        self,
+        session_id: str,
+        event_type: str,
+        agent_type: str,
+        data: dict[str, Any],
+    ) -> None:
+        """Broadcast an agent lifecycle event."""
+        await self.send_to_session(
+            session_id,
+            {
+                "type": "agent_event",
+                "agent_type": agent_type,
+                "event": event_type,
+                "data": data,
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+            },
+        )
+
+    async def broadcast_artifact(
+        self,
+        session_id: str,
+        artifact_id: str,
+        artifact_data: dict[str, Any],
+    ) -> None:
+        """Broadcast artifact creation/update."""
+        await self.send_to_session(
+            session_id,
+            {
+                "type": "artifact",
+                "artifact_id": artifact_id,
+                "data": artifact_data,
                 "timestamp": datetime.utcnow().isoformat() + "Z",
             },
         )

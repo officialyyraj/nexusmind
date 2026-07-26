@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import agents, memory, mcp, plugins, sandbox, sessions, webhooks
+from app.api.v1 import agents, executions, memory, mcp, plugins, sandbox, sessions, webhooks
 
 api_router = APIRouter()
 
@@ -41,6 +41,12 @@ api_router.include_router(
     webhooks.router,
     prefix="/webhooks",
     tags=["webhooks"],
+)
+
+api_router.include_router(
+    executions.router,
+    prefix="/executions",
+    tags=["executions"],
 )
 
 api_router.include_router(

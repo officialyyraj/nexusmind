@@ -4,23 +4,15 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.database import async_session_maker
-from app.dependencies import CurrentUser, DbSession
-from app.security.audit import AuditAction, AuditLevel, AuditLog, AuditService
-from app.security.rbac import Permission, RBACService, Role
+from app.dependencies import AdminUser, DbSession
+from app.security.audit import ACTION_SEVERITY, AuditAction, AuditLevel, AuditLog, AuditService
+from app.security.rbac import RBACService, Role
 
 
 router = APIRouter()
-
-
-async def get_db() -> AsyncSession:
-    """Get database session."""
-    async for session in async_session_maker():
-        yield session
 
 
 # Response models
@@ -84,31 +76,9 @@ class PermissionGrantRequest(BaseModel):
     granted: bool = True
 
 
-# Permission check dependency
-async def require_security_admin(
-    user_id: CurrentUser,
-    db: DbSession,
-) -> bool:
-    """Require user has security admin permissions."""
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    rbac = RBACService(db)
-    has_perm = await rbac.has_permission(uuid.UUID(user_id), Permission.SETTINGS_ADMIN)
-    if not has_perm:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Security admin permission required",
-        )
-    return True
-
-
 @router.get("/audit-logs", response_model=AuditLogListResponse)
 async def get_audit_logs(
-    user_id: CurrentUser,
+    user: AdminUser,
     db: DbSession,
     action: str | None = Query(None, description="Filter by action"),
     user_id_filter: str | None = Query(None, alias="userId", description="Filter by user ID"),
@@ -175,7 +145,7 @@ async def get_audit_logs(
 @router.get("/audit-logs/{log_id}", response_model=AuditLogResponse)
 async def get_audit_log(
     log_id: str,
-    user_id: CurrentUser,
+    user: AdminUser,
     db: DbSession,
 ) -> dict[str, Any]:
     """Get a specific audit log entry."""
@@ -207,11 +177,10 @@ async def get_audit_log(
 
 @router.get("/dashboard", response_model=SecurityDashboardResponse)
 async def get_security_dashboard(
-    user_id: CurrentUser,
+    user: AdminUser,
     db: DbSession,
-    _=Depends(require_security_admin),
 ) -> dict[str, Any]:
-    """Get security dashboard data. Requires security admin permission."""
+    """Get security dashboard data. Requires admin privileges."""
     audit_service = AuditService(db)
 
     # Calculate time ranges
@@ -279,12 +248,11 @@ async def get_security_dashboard(
 
 @router.get("/events/failed-logins")
 async def get_failed_logins(
-    user_id: CurrentUser,
+    user: AdminUser,
     db: DbSession,
-    _=Depends(require_security_admin),
     limit: int = Query(50, ge=1, le=500),
 ) -> dict[str, Any]:
-    """Get recent failed login attempts."""
+    """Get recent failed login attempts. Requires admin privileges."""
     audit_service = AuditService(db)
 
     logs = await audit_service.get_logs(
@@ -308,12 +276,11 @@ async def get_failed_logins(
 
 @router.get("/events/api-key-usage")
 async def get_api_key_usage(
-    user_id: CurrentUser,
+    user: AdminUser,
     db: DbSession,
-    _=Depends(require_security_admin),
     limit: int = Query(50, ge=1, le=500),
 ) -> dict[str, Any]:
-    """Get recent API key usage."""
+    """Get recent API key usage. Requires admin privileges."""
     audit_service = AuditService(db)
 
     logs = await audit_service.get_logs(
@@ -338,12 +305,11 @@ async def get_api_key_usage(
 
 @router.get("/events/permission-changes")
 async def get_permission_changes(
-    user_id: CurrentUser,
+    user: AdminUser,
     db: DbSession,
-    _=Depends(require_security_admin),
     limit: int = Query(50, ge=1, le=500),
 ) -> dict[str, Any]:
-    """Get recent permission changes."""
+    """Get recent permission changes. Requires admin privileges."""
     audit_service = AuditService(db)
 
     logs = await audit_service.get_logs(
@@ -369,11 +335,10 @@ async def get_permission_changes(
 @router.post("/roles/assign")
 async def assign_role(
     request: RoleAssignmentRequest,
-    user_id: CurrentUser,
+    user: AdminUser,
     db: DbSession,
-    _=Depends(require_security_admin),
 ) -> dict[str, Any]:
-    """Assign a role to a user. Requires security admin permission."""
+    """Assign a role to a user. Requires admin privileges."""
     rbac = RBACService(db)
 
     try:
@@ -393,7 +358,7 @@ async def assign_role(
     # Audit the action
     audit_service = AuditService(db)
     await audit_service.log_permission_change(
-        admin_user_id=uuid.UUID(user_id),
+        admin_user_id=user.id,
         target_user_id=uuid.UUID(request.user_id),
         action=AuditAction.USER_ROLE_CHANGE,
         old_role=None,
@@ -410,11 +375,10 @@ async def assign_role(
 @router.post("/permissions/grant")
 async def grant_permission(
     request: PermissionGrantRequest,
-    user_id: CurrentUser,
+    user: AdminUser,
     db: DbSession,
-    _=Depends(require_security_admin),
 ) -> dict[str, Any]:
-    """Grant or revoke a permission for a user. Requires security admin permission."""
+    """Grant or revoke a permission for a user. Requires admin privileges."""
     rbac = RBACService(db)
 
     try:
@@ -434,7 +398,7 @@ async def grant_permission(
     audit_service = AuditService(db)
     await audit_service.log(
         action=AuditAction.USER_PERMISSION_CHANGE,
-        user_id=uuid.UUID(user_id),
+        user_id=user.id,
         resource_type="user",
         resource_id=uuid.UUID(request.user_id),
         details={
@@ -454,9 +418,10 @@ async def grant_permission(
 @router.get("/roles/{user_id}")
 async def get_user_roles(
     user_id: str,
+    user: AdminUser,
     db: DbSession,
 ) -> dict[str, Any]:
-    """Get all roles assigned to a user."""
+    """Get all roles assigned to a user. Requires admin privileges."""
     rbac = RBACService(db)
 
     roles = await rbac.get_user_roles(uuid.UUID(user_id))
@@ -470,10 +435,11 @@ async def get_user_roles(
 @router.get("/permissions/{user_id}")
 async def get_user_permissions(
     user_id: str,
+    user: AdminUser,
     db: DbSession,
     project_id: str | None = Query(None, description="Project-specific permissions"),
 ) -> dict[str, Any]:
-    """Get all permissions for a user."""
+    """Get all permissions for a user. Requires admin privileges."""
     rbac = RBACService(db)
 
     project_uuid = uuid.UUID(project_id) if project_id else None

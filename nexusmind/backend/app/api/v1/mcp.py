@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.dependencies import AuthenticatedUser, AdminUser
 from app.mcp import (
     MCPServerConfig,
     MCPServerHealth,
@@ -27,21 +28,28 @@ def get_manager():
 
 
 @router.get("/servers", response_model=list[MCPServerInfo])
-async def list_servers() -> list[MCPServerInfo]:
+async def list_servers(
+    user: AuthenticatedUser,
+) -> list[MCPServerInfo]:
     """List all MCP servers."""
     manager = get_manager()
     return manager.list_servers()
 
 
 @router.get("/servers/configs", response_model=list[MCPServerConfig])
-async def list_server_configs() -> list[MCPServerConfig]:
-    """List all MCP server configurations."""
+async def list_server_configs(
+    user: AdminUser,
+) -> list[MCPServerConfig]:
+    """List all MCP server configurations. Requires admin privileges."""
     manager = get_manager()
     return manager.list_server_configs()
 
 
 @router.get("/servers/{server_name}", response_model=MCPServerInfo)
-async def get_server(server_name: str) -> MCPServerInfo:
+async def get_server(
+    server_name: str,
+    user: AuthenticatedUser,
+) -> MCPServerInfo:
     """Get MCP server details."""
     manager = get_manager()
     info = manager.get_server_info(server_name)
@@ -54,8 +62,11 @@ async def get_server(server_name: str) -> MCPServerInfo:
 
 
 @router.post("/servers", response_model=MCPServerInfo, status_code=status.HTTP_201_CREATED)
-async def add_server(config: MCPServerConfig) -> MCPServerInfo:
-    """Add a new MCP server configuration."""
+async def add_server(
+    config: MCPServerConfig,
+    user: AdminUser,
+) -> MCPServerInfo:
+    """Add a new MCP server configuration. Requires admin privileges."""
     manager = get_manager()
 
     # Check if server already exists
@@ -84,8 +95,11 @@ async def add_server(config: MCPServerConfig) -> MCPServerInfo:
 
 
 @router.delete("/servers/{server_name}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_server(server_name: str) -> None:
-    """Remove an MCP server."""
+async def remove_server(
+    server_name: str,
+    user: AdminUser,
+) -> None:
+    """Remove an MCP server. Requires admin privileges."""
     manager = get_manager()
 
     if server_name not in manager._configs:
@@ -98,8 +112,11 @@ async def remove_server(server_name: str) -> None:
 
 
 @router.post("/servers/{server_name}/start", response_model=MCPServerInfo)
-async def start_server(server_name: str) -> MCPServerInfo:
-    """Start an MCP server."""
+async def start_server(
+    server_name: str,
+    user: AdminUser,
+) -> MCPServerInfo:
+    """Start an MCP server. Requires admin privileges."""
     manager = get_manager()
 
     if server_name not in manager._configs:
@@ -118,8 +135,11 @@ async def start_server(server_name: str) -> MCPServerInfo:
 
 
 @router.post("/servers/{server_name}/stop", status_code=status.HTTP_204_NO_CONTENT)
-async def stop_server(server_name: str) -> None:
-    """Stop an MCP server."""
+async def stop_server(
+    server_name: str,
+    user: AdminUser,
+) -> None:
+    """Stop an MCP server. Requires admin privileges."""
     manager = get_manager()
 
     if server_name not in manager._configs:
@@ -132,8 +152,11 @@ async def stop_server(server_name: str) -> None:
 
 
 @router.post("/servers/{server_name}/restart", response_model=MCPServerInfo)
-async def restart_server(server_name: str) -> MCPServerInfo:
-    """Restart an MCP server."""
+async def restart_server(
+    server_name: str,
+    user: AdminUser,
+) -> MCPServerInfo:
+    """Restart an MCP server. Requires admin privileges."""
     manager = get_manager()
 
     if server_name not in manager._configs:
@@ -152,8 +175,11 @@ async def restart_server(server_name: str) -> MCPServerInfo:
 
 
 @router.post("/servers/{server_name}/enable", response_model=MCPServerInfo)
-async def enable_server(server_name: str) -> MCPServerInfo:
-    """Enable an MCP server."""
+async def enable_server(
+    server_name: str,
+    user: AdminUser,
+) -> MCPServerInfo:
+    """Enable an MCP server. Requires admin privileges."""
     manager = get_manager()
 
     config = manager.get_server_config(server_name)
@@ -168,8 +194,11 @@ async def enable_server(server_name: str) -> MCPServerInfo:
 
 
 @router.post("/servers/{server_name}/disable", status_code=status.HTTP_204_NO_CONTENT)
-async def disable_server(server_name: str) -> None:
-    """Disable an MCP server."""
+async def disable_server(
+    server_name: str,
+    user: AdminUser,
+) -> None:
+    """Disable an MCP server. Requires admin privileges."""
     manager = get_manager()
 
     config = manager.get_server_config(server_name)
@@ -187,7 +216,10 @@ async def disable_server(server_name: str) -> None:
 
 
 @router.get("/tools", response_model=list[MCPTool])
-async def list_tools(server_name: str | None = None) -> list[MCPTool]:
+async def list_tools(
+    server_name: str | None = None,
+    user: AuthenticatedUser = None,
+) -> list[MCPTool]:
     """List all available MCP tools."""
     manager = get_manager()
 
@@ -198,7 +230,10 @@ async def list_tools(server_name: str | None = None) -> list[MCPTool]:
 
 
 @router.get("/tools/{tool_name}", response_model=MCPTool)
-async def get_tool(tool_name: str) -> MCPTool:
+async def get_tool(
+    tool_name: str,
+    user: AuthenticatedUser,
+) -> MCPTool:
     """Get MCP tool details."""
     manager = get_manager()
 
@@ -212,7 +247,10 @@ async def get_tool(tool_name: str) -> MCPTool:
 
 
 @router.post("/tools/{tool_name}/discover", response_model=list[MCPTool])
-async def discover_tools(server_name: str) -> list[MCPTool]:
+async def discover_tools(
+    server_name: str,
+    user: AuthenticatedUser,
+) -> list[MCPTool]:
     """Discover tools from a server."""
     manager = get_manager()
 
@@ -238,6 +276,7 @@ async def execute_tool(
     tool_name: str,
     arguments: dict[str, Any] | None = None,
     timeout: int | None = None,
+    user: AuthenticatedUser = None,
 ) -> MCPToolInvocationResult:
     """Execute an MCP tool."""
     manager = get_manager()
@@ -269,7 +308,9 @@ async def execute_tool(
 
 
 @router.get("/status")
-async def get_status() -> dict[str, Any]:
+async def get_status(
+    user: AuthenticatedUser,
+) -> dict[str, Any]:
     """Get MCP system status."""
     manager = get_manager()
 
@@ -298,7 +339,10 @@ async def get_status() -> dict[str, Any]:
 
 
 @router.get("/health", response_model=list[MCPServerHealth])
-async def get_health(server_name: str | None = None) -> MCPServerHealth | list[MCPServerHealth]:
+async def get_health(
+    server_name: str | None = None,
+    user: AuthenticatedUser = None,
+) -> MCPServerHealth | list[MCPServerHealth]:
     """Get health status for server(s)."""
     manager = get_manager()
     return await manager.health_check(server_name)
@@ -308,8 +352,10 @@ async def get_health(server_name: str | None = None) -> MCPServerHealth | list[M
 
 
 @router.get("/config", response_model=dict[str, Any])
-async def get_config() -> dict[str, Any]:
-    """Get current MCP configuration."""
+async def get_config(
+    user: AdminUser,
+) -> dict[str, Any]:
+    """Get current MCP configuration. Requires admin privileges."""
     manager = get_manager()
 
     configs = []
@@ -332,14 +378,18 @@ async def get_config() -> dict[str, Any]:
 
 
 @router.post("/start-all", response_model=list[MCPServerInfo])
-async def start_all_servers() -> list[MCPServerInfo]:
-    """Start all configured MCP servers."""
+async def start_all_servers(
+    user: AdminUser,
+) -> list[MCPServerInfo]:
+    """Start all configured MCP servers. Requires admin privileges."""
     manager = get_manager()
     return await manager.start_all()
 
 
 @router.post("/stop-all", status_code=status.HTTP_204_NO_CONTENT)
-async def stop_all_servers() -> None:
-    """Stop all running MCP servers."""
+async def stop_all_servers(
+    user: AdminUser,
+) -> None:
+    """Stop all running MCP servers. Requires admin privileges."""
     manager = get_manager()
     await manager.stop_all()

@@ -4,22 +4,14 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.service import AuthService
-from app.db.database import async_session_maker
 from app.db.session import User
-from app.utils.security import decode_access_token
+from app.dependencies import AuthenticatedUser, DbSession
 
 router = APIRouter()
-
-
-async def get_db() -> AsyncSession:
-    """Get database session."""
-    async for session in async_session_maker():
-        yield session
 
 
 class RegisterRequest(BaseModel):
@@ -84,7 +76,7 @@ class ApiKeyCreatedResponse(BaseModel):
 @router.post("/register", response_model=TokenResponse)
 async def register(
     request: RegisterRequest,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
 ) -> dict[str, Any]:
     """Register a new user."""
     service = AuthService(db)
@@ -122,7 +114,7 @@ async def register(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     request: LoginRequest,
-    db: AsyncSession = Depends(get_db),
+    db: DbSession,
 ) -> dict[str, Any]:
     """Login with email and password."""
     service = AuthService(db)
@@ -150,39 +142,9 @@ async def login(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(
-    db: AsyncSession = Depends(get_db),
-    authorization: str | None = None,
+    user: AuthenticatedUser,
 ) -> dict[str, Any]:
     """Get current user information."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token = authorization.replace("Bearer ", "")
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-
-    service = AuthService(db)
-    user = await service.get_user_by_id(uuid.UUID(user_id))
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
     return {
         "id": str(user.id),
         "email": user.email,
@@ -194,25 +156,10 @@ async def get_current_user(
 @router.post("/api-keys", response_model=ApiKeyCreatedResponse)
 async def create_api_key(
     request: ApiKeyCreate,
-    db: AsyncSession = Depends(get_db),
-    authorization: str | None = None,
+    user: AuthenticatedUser,
+    db: DbSession,
 ) -> dict[str, Any]:
     """Create a new API key."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token = authorization.replace("Bearer ", "")
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-
-    user_id = uuid.UUID(payload["sub"])
     service = AuthService(db)
 
     expires_at = None
@@ -220,7 +167,7 @@ async def create_api_key(
         expires_at = datetime.utcnow() + datetime.timedelta(days=request.expires_in_days)
 
     api_key, plain_key = await service.create_api_key(
-        user_id=user_id,
+        user_id=user.id,
         name=request.name,
         expires_at=expires_at,
     )
@@ -236,27 +183,12 @@ async def create_api_key(
 
 @router.get("/api-keys", response_model=list[ApiKeyResponse])
 async def list_api_keys(
-    db: AsyncSession = Depends(get_db),
-    authorization: str | None = None,
+    user: AuthenticatedUser,
+    db: DbSession,
 ) -> list[dict[str, Any]]:
     """List all API keys for the current user."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token = authorization.replace("Bearer ", "")
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-
-    user_id = uuid.UUID(payload["sub"])
     service = AuthService(db)
-    api_keys = await service.list_api_keys(user_id)
+    api_keys = await service.list_api_keys(user.id)
 
     return [
         {
@@ -273,28 +205,13 @@ async def list_api_keys(
 @router.delete("/api-keys/{api_key_id}")
 async def revoke_api_key(
     api_key_id: str,
-    db: AsyncSession = Depends(get_db),
-    authorization: str | None = None,
+    user: AuthenticatedUser,
+    db: DbSession,
 ) -> dict[str, Any]:
     """Revoke an API key."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-
-    token = authorization.replace("Bearer ", "")
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
-
-    user_id = uuid.UUID(payload["sub"])
     service = AuthService(db)
 
-    success = await service.revoke_api_key(uuid.UUID(api_key_id), user_id)
+    success = await service.revoke_api_key(uuid.UUID(api_key_id), user.id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -6,8 +6,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient, ASGITransport
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
 from app.main import app
@@ -30,7 +30,6 @@ def settings() -> Settings:
 @pytest.fixture
 def mock_db_session() -> AsyncMock:
     """Create a mock database session."""
-    from sqlalchemy.ext.asyncio import AsyncSession
     session = AsyncMock(spec=AsyncSession)
     session.execute = AsyncMock()
     session.add = MagicMock()
@@ -49,15 +48,16 @@ def mock_db_session() -> AsyncMock:
 
 
 @pytest.fixture
-def client(mock_db_session: AsyncMock) -> TestClient:
+def client(mock_db_session: AsyncMock):
     """Create test client with mocked dependencies."""
     # Override database dependency
     async def override_get_db():
         yield mock_db_session
 
-    from app.auth.routes import get_db
+    from app.dependencies import get_db
     app.dependency_overrides[get_db] = override_get_db
 
+    from fastapi.testclient import TestClient
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
 

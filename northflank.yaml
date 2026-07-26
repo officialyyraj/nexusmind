@@ -69,7 +69,9 @@
                   "type": "postgres-15",
                   "version": "15",
                   "billing": {
-                    "deploymentPlan": "nf-starter-5"
+                    "deploymentPlan": "nf-starter-5",
+                    "storage": 10240,
+                    "replicas": 1
                   }
                 }
               },
@@ -81,7 +83,9 @@
                   "type": "redis-7",
                   "version": "7",
                   "billing": {
-                    "deploymentPlan": "nf-starter-5"
+                    "deploymentPlan": "nf-starter-5",
+                    "storage": 1024,
+                    "replicas": 1
                   }
                 }
               },
@@ -99,20 +103,18 @@
                       "imagePath": "ghcr.io/chroma-core/chroma:0.4.22"
                     },
                     "storage": {
-                      "volumes": [
-                        {
-                          "name": "chromadb-data",
-                          "mountPath": "/data/chromadb",
-                          "size": "5Gi"
-                        }
-                      ]
+                      "usePdSsdStorage": true,
+                      "ephemeralStorage": {
+                        "storageSize": 5120
+                      }
                     }
                   },
                   "ports": [
                     {
                       "name": "http",
                       "internalPort": 8000,
-                      "public": false
+                      "public": false,
+                      "protocol": "HTTP"
                     }
                   ],
                   "env": [
@@ -144,25 +146,18 @@
                   "deployment": {
                     "instances": 1,
                     "storage": {
-                      "volumes": [
-                        {
-                          "name": "workspace",
-                          "mountPath": "/app/workspace",
-                          "size": "10Gi"
-                        },
-                        {
-                          "name": "plugins",
-                          "mountPath": "/app/plugins",
-                          "size": "2Gi"
-                        }
-                      ]
+                      "usePdSsdStorage": true,
+                      "ephemeralStorage": {
+                        "storageSize": 1024
+                      }
                     }
                   },
                   "ports": [
                     {
                       "name": "http",
                       "internalPort": 8000,
-                      "public": false
+                      "public": false,
+                      "protocol": "HTTP"
                     }
                   ],
                   "env": [
@@ -268,13 +263,20 @@
                     "buildPlan": "nf-build-10"
                   },
                   "deployment": {
-                    "instances": 1
+                    "instances": 1,
+                    "storage": {
+                      "usePdSsdStorage": true,
+                      "ephemeralStorage": {
+                        "storageSize": 1024
+                      }
+                    }
                   },
                   "ports": [
                     {
                       "name": "http",
                       "internalPort": 3000,
-                      "public": true
+                      "public": true,
+                      "protocol": "HTTP"
                     }
                   ],
                   "env": [

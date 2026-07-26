@@ -1,4 +1,4 @@
-// File: /workspace/project/nexusmind/frontend/src/app/sessions/page.tsx
+// File: /workspace/project/nexusmind/nexusmind/frontend/src/app/sessions/page.tsx
 import * as entry from '../../../../src/app/sessions/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

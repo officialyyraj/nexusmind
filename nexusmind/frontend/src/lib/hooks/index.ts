@@ -3,3 +3,6 @@ export * from "./use-keyboard-navigation";
 
 // Performance hooks
 export * from "./use-performance";
+
+// Authentication hooks
+export * from "./use-auth";

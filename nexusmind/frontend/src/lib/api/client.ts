@@ -2,6 +2,7 @@ import type { Agent, Session, Message, Project, Plugin, MemoryItem, LogEntry, Mo
                  MCPServerConfig, MCPServerInfo, MCPServerHealth, MCPTool, MCPToolInvocationResult, MCPStatus } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -88,4 +89,62 @@ export const api = {
     startAllServers: () => request<MCPServerInfo[]>('/mcp/start-all', { method: 'POST' }),
     stopAllServers: () => request<void>('/mcp/stop-all', { method: 'POST' }),
   },
+  executions: {
+    list: (params?: { sessionId?: string; state?: string; limit?: number; offset?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.sessionId) searchParams.set('session_id', params.sessionId);
+      if (params?.state) searchParams.set('state', params.state);
+      if (params?.limit) searchParams.set('limit', String(params.limit));
+      if (params?.offset) searchParams.set('offset', String(params.offset));
+      return request<{ executions: unknown[]; total: number; limit: number; offset: number }>(
+        `/executions?${searchParams}`
+      );
+    },
+    get: (id: string) => request<unknown>(`/executions/${id}`),
+    getSteps: (id: string) => request<unknown[]>(`/executions/${id}/steps`),
+    getLogs: (id: string, limit = 100, offset = 0) => request<unknown[]>(
+      `/executions/${id}/logs?limit=${limit}&offset=${offset}`
+    ),
+    create: (data: { sessionId?: string; task: string; prompt?: string; agentTypes?: string[]; maxRetries?: number }) =>
+      request<unknown>('/executions', { method: 'POST', body: JSON.stringify(data) }),
+    cancel: (id: string) => request<unknown>(`/executions/${id}/cancel`, { method: 'POST' }),
+    pause: (id: string) => request<unknown>(`/executions/${id}/pause`, { method: 'POST' }),
+    resume: (id: string) => request<unknown>(`/executions/${id}/resume`, { method: 'POST' }),
+    retry: (id: string) => request<unknown>(`/executions/${id}/retry`, { method: 'POST' }),
+  },
+  sandbox: {
+    list: () => request<unknown[]>('/sandbox'),
+    allocate: (data: { image?: string; workspace?: string }) => 
+      request<unknown>('/sandbox/allocate', { method: 'POST', body: JSON.stringify(data) }),
+    getStatus: (id: string) => request<{ id: string; status: string }>(`/sandbox/${id}/status`),
+    listFiles: (sandboxId: string, path = '/workspace') => 
+      request<{ files: { name: string; path: string; type: string; size?: number }[] }>(
+        `/${sandboxId}/files?path=${encodeURIComponent(path)}`
+      ),
+    readFile: (sandboxId: string, path: string) => 
+      request<{ sandboxId: string; path: string; content: string }>(`/${sandboxId}/files/${encodeURIComponent(path)}`),
+    writeFile: (sandboxId: string, path: string, content: string) => 
+      request<{ sandboxId: string; path: string; written: boolean }>(
+        `/${sandboxId}/files`, 
+        { method: 'POST', body: JSON.stringify({ path, content }) }
+      ),
+    execute: (sandboxId: string, command: string, timeout = 300) => 
+      request<unknown>(`/${sandboxId}/execute`, { 
+        method: 'POST', 
+        body: JSON.stringify({ command, timeout }) 
+      }),
+    release: (id: string) => request<unknown>(`/sandbox/${id}`, { method: 'DELETE' }),
+  },
+  monitoring: {
+    health: () => request<{ status: string; service: string; version: string }>('/health'),
+    metrics: () => request<unknown>('/metrics'),
+  },
 };
+
+// WebSocket URL helper
+export function getWebSocketUrl(sessionId?: string): string {
+  if (sessionId) {
+    return `${WS_BASE}/ws/sessions/${sessionId}`;
+  }
+  return `${WS_BASE}/ws`;
+}

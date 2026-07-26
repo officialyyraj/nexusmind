@@ -179,13 +179,13 @@ export function ExecutionTimeline({ className, onEventClick }: ExecutionTimeline
           
           {/* Replay Button */}
           <DropdownMenu open={showReplay} onOpenChange={setShowReplay}>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger>
               <Button variant="ghost" size="sm" className="h-8 text-xs">
                 <RotateCcw className="h-3 w-3 mr-1" />
                 Replay
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent >
               <DropdownMenuItem onClick={() => { replayWorkflow(); setShowReplay(false); }}>
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Replay from start
@@ -195,12 +195,12 @@ export function ExecutionTimeline({ className, onEventClick }: ExecutionTimeline
 
           {/* Playback Speed */}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger>
               <Button variant="ghost" size="sm" className="h-8 text-xs">
                 {playbackSpeed}x
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent >
               {[0.5, 1, 2, 4].map((speed) => (
                 <DropdownMenuItem
                   key={speed}

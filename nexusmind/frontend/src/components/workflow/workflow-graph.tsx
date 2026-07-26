@@ -74,10 +74,12 @@ interface WorkflowNodeData {
   node: WorkflowNodeState;
   onSelect: (nodeId: string) => void;
   selected: boolean;
+  [key: string]: unknown;
 }
 
-function WorkflowNodeComponent({ data, selected }: NodeProps<WorkflowNodeData>) {
-  const { node, onSelect, selected: isSelected } = data;
+function WorkflowNodeComponent({ data, selected }: NodeProps) {
+  const nodeData = data as unknown as WorkflowNodeData;
+  const { node, onSelect, selected: isSelected } = nodeData;
   const Icon = nodeIcons[node.type] || Code;
   
   return (
@@ -223,8 +225,8 @@ export function WorkflowGraph({ className, onNodeSelect }: WorkflowGraphProps) {
     isLive,
   } = useWorkflowStore();
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<NodeProps<WorkflowNodeData>[]>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<WorkflowNodeData>>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // Transform workflow data to React Flow format
   useMemo(() => {

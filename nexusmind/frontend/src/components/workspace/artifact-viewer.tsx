@@ -27,6 +27,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 
+// Type helper for syntax highlighter styles
+type SyntaxStyle = typeof oneDark;
+
 interface ArtifactViewerProps {
   content: string;
   type?: "markdown" | "html" | "json" | "yaml" | "xml" | "image" | "svg" | "pdf" | "mermaid" | "text";
@@ -164,17 +167,18 @@ export function ArtifactViewer({
           code({ node, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || "");
             const inline = !match;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const CodeBlock = SyntaxHighlighter as any;
             return !inline ? (
               <div className="relative group">
-                <SyntaxHighlighter
+                <CodeBlock
                   style={theme === "dark" ? oneDark : oneLight}
                   language={match[1]}
                   PreTag="div"
                   className="rounded-lg !mt-2 !mb-2"
-                  {...props}
                 >
                   {String(children).replace(/\n$/, "")}
-                </SyntaxHighlighter>
+                </CodeBlock>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -370,8 +374,6 @@ export function ArtifactViewer({
       case "image":
       case "svg":
         return <Image className="h-4 w-4" />;
-      case "code":
-        return <Code className="h-4 w-4" />;
       default:
         return <File className="h-4 w-4" />;
     }

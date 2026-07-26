@@ -44,7 +44,7 @@ export function useThrottle<T>(value: T, interval: number): T {
 export function useLocalStorage<T>(
   key: string,
   initialValue: T
-): [T, (value: T | ((val: T) => T) => void) => void] {
+): [T, (value: T | ((val: T) => T)) => void] {
   const [storedValue, setStoredValue] = useState<T>(() => {
     if (typeof window === "undefined") {
       return initialValue;
@@ -59,7 +59,7 @@ export function useLocalStorage<T>(
   });
 
   const setValue = useCallback(
-    (value: T | ((val: T) => T) => void) => {
+    (value: T | ((val: T) => T)) => {
       try {
         const valueToStore =
           value instanceof Function ? value(storedValue) : value;
@@ -79,7 +79,7 @@ export function useLocalStorage<T>(
 
 // Previous value hook
 export function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T>();
+  const ref = useRef<T>(undefined);
 
   useEffect(() => {
     ref.current = value;
@@ -308,11 +308,11 @@ export function useFocusTrap(
       }
     };
 
-    ref.current.addEventListener("keydown", handleKeyDown);
+    ref.current.addEventListener("keydown", handleKeyDown as EventListener);
     firstFocusable?.focus();
 
     return () => {
-      ref.current?.removeEventListener("keydown", handleKeyDown);
+      ref.current?.removeEventListener("keydown", handleKeyDown as EventListener);
     };
   }, [ref, isActive]);
 }

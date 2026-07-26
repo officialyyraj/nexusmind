@@ -18,7 +18,7 @@ export interface WorkspaceFile {
 export interface EditorTab {
   id: string;
   title: string;
-  type: 'editor' | 'chat' | 'workflow' | 'terminal' | 'preview' | 'diff';
+  type: 'editor' | 'chat' | 'workflow' | 'terminal' | 'preview' | 'diff' | 'search';
   icon?: string;
   pinned: boolean;
   closable: boolean;

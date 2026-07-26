@@ -45,6 +45,15 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
   type __Unused = __Check
 }
 
+// Validate ../../src/app/security/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/security">> = Specific
+  const handler = {} as typeof import("../../src/app/security/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/sessions/[id]/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/sessions/[id]">> = Specific
@@ -63,10 +72,37 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
   type __Unused = __Check
 }
 
+// Validate ../../src/app/settings/mcp/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/settings/mcp">> = Specific
+  const handler = {} as typeof import("../../src/app/settings/mcp/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/settings/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/settings">> = Specific
   const handler = {} as typeof import("../../src/app/settings/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/workflow/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/workflow">> = Specific
+  const handler = {} as typeof import("../../src/app/workflow/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/workspace/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/workspace">> = Specific
+  const handler = {} as typeof import("../../src/app/workspace/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

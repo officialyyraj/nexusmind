@@ -94,7 +94,8 @@ export function WorkspaceEditor({
   };
 
   const handleDiffEditorMount: OnMount = (editor, _monaco) => {
-    setDiffEditorInstance(editor);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setDiffEditorInstance(editor as unknown as MonacoEditor.IStandaloneDiffEditor);
   };
 
   const handleSave = useCallback((fileId?: string) => {
@@ -222,7 +223,7 @@ export function WorkspaceEditor({
             >
               {tab.pinned && <span className="text-yellow-500">📌</span>}
               <span className="truncate flex-1">{tab.title}</span>
-              {tab.data?.modified && <span className="text-[#e8ab53]">●</span>}
+              {(tab.data?.modified as boolean) && <span className="text-[#e8ab53]">●</span>}
             </div>
           ))}
         </div>

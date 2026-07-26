@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api/client";
-import type { MCPServerInfo, MCPTool, MCPStatus, MCPServerHealth } from "@/types";
+import type { MCPServerInfo, MCPTool, MCPStatus, MCPServerHealth, TransportType } from "@/types";
 import { 
   Server, 
   Plus, 
@@ -33,9 +33,17 @@ export default function MCPSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newServer, setNewServer] = useState({
+  const [newServer, setNewServer] = useState<{
+    name: string;
+    transport: TransportType;
+    command: string;
+    args: string;
+    url: string;
+    enabled: boolean;
+    trusted: boolean;
+  }>({
     name: "",
-    transport: "stdio" as const,
+    transport: "stdio",
     command: "",
     args: "",
     url: "",
@@ -303,11 +311,12 @@ export default function MCPSettingsPage() {
                   <select
                     id="transport"
                     value={newServer.transport}
-                    onChange={(e) => setNewServer({ ...newServer, transport: e.target.value as "stdio" | "http" })}
+                    onChange={(e) => setNewServer({ ...newServer, transport: e.target.value as TransportType })}
                     className="mt-1 w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                   >
                     <option value="stdio">Stdio</option>
                     <option value="http">HTTP</option>
+                    <option value="sse">SSE</option>
                   </select>
                 </div>
               </div>

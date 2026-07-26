@@ -16,6 +16,8 @@ from app.api.v1.mcp import router as mcp_router
 from app.api.v1.sandbox import router as sandbox_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.webhooks import router as webhooks_router
+from app.api.v1.executions import router as executions_router
+from app.api.ws import router as ws_router
 from app.auth.routes import router as auth_router
 from app.tools.browser.api import router as browser_router
 from app.monitoring.routes import router as monitoring_router
@@ -162,10 +164,14 @@ def create_app() -> FastAPI:
     app.include_router(plugins_router, prefix=f"{api_prefix}/plugins")
     app.include_router(webhooks_router, prefix=f"{api_prefix}/webhooks")
     app.include_router(mcp_router, prefix=f"{api_prefix}/mcp")
+    app.include_router(executions_router)
     app.include_router(browser_router)
 
     # Include monitoring routes (no prefix for /health, /metrics)
     app.include_router(monitoring_router)
+
+    # WebSocket routes (no prefix, uses /ws path directly)
+    app.include_router(ws_router)
 
     # Health check endpoint
     @app.get("/health", tags=["health"])

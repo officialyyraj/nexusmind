@@ -10,130 +10,7 @@ import type {
   WorkflowFilter,
   NodeStatus,
 } from '@/types';
-
-// Generate mock workflow data for demonstration
-function generateMockWorkflow(): WorkflowExecution {
-  const nodes: WorkflowNodeState[] = [
-    {
-      id: 'planner',
-      name: 'Planner',
-      type: 'planner',
-      status: 'completed',
-      position: { x: 250, y: 50 },
-      assignedAgent: 'planner-agent-1',
-      progress: 100,
-      retryCount: 0,
-      maxRetries: 3,
-      startedAt: new Date(Date.now() - 60000).toISOString(),
-      completedAt: new Date(Date.now() - 50000).toISOString(),
-      duration: 10000,
-      output: 'Task decomposed into 5 subtasks',
-    },
-    {
-      id: 'researcher',
-      name: 'Researcher',
-      type: 'researcher',
-      status: 'running',
-      position: { x: 250, y: 150 },
-      assignedAgent: 'researcher-agent-1',
-      currentTask: 'Researching implementation patterns',
-      progress: 65,
-      retryCount: 0,
-      maxRetries: 3,
-      startedAt: new Date(Date.now() - 40000).toISOString(),
-      recentActions: [
-        {
-          id: '1',
-          type: 'memory',
-          description: 'Accessed project requirements',
-          timestamp: new Date(Date.now() - 30000).toISOString(),
-          success: true,
-        },
-        {
-          id: '2',
-          type: 'tool',
-          description: 'Used web search tool',
-          timestamp: new Date(Date.now() - 25000).toISOString(),
-          duration: 5000,
-          success: true,
-        },
-      ],
-    },
-    {
-      id: 'backend',
-      name: 'Backend',
-      type: 'coder',
-      status: 'waiting',
-      position: { x: 250, y: 250 },
-      progress: 0,
-      retryCount: 0,
-      maxRetries: 3,
-    },
-    {
-      id: 'frontend',
-      name: 'Frontend',
-      type: 'coder',
-      status: 'waiting',
-      position: { x: 250, y: 350 },
-      progress: 0,
-      retryCount: 0,
-      maxRetries: 3,
-    },
-    {
-      id: 'reviewer',
-      name: 'Reviewer',
-      type: 'reviewer',
-      status: 'waiting',
-      position: { x: 250, y: 450 },
-      progress: 0,
-      retryCount: 0,
-      maxRetries: 3,
-    },
-    {
-      id: 'tester',
-      name: 'Tester',
-      type: 'tester',
-      status: 'waiting',
-      position: { x: 250, y: 550 },
-      progress: 0,
-      retryCount: 0,
-      maxRetries: 3,
-    },
-    {
-      id: 'documentation',
-      name: 'Documentation',
-      type: 'documentation',
-      status: 'waiting',
-      position: { x: 250, y: 650 },
-      progress: 0,
-      retryCount: 0,
-      maxRetries: 3,
-    },
-  ];
-
-  const edges: WorkflowEdgeState[] = [
-    { id: 'e1', source: 'planner', target: 'researcher', status: 'completed' },
-    { id: 'e2', source: 'researcher', target: 'backend', status: 'pending' },
-    { id: 'e3', source: 'researcher', target: 'frontend', status: 'pending' },
-    { id: 'e4', source: 'backend', target: 'reviewer', status: 'pending' },
-    { id: 'e5', source: 'frontend', target: 'reviewer', status: 'pending' },
-    { id: 'e6', source: 'reviewer', target: 'tester', status: 'pending' },
-    { id: 'e7', source: 'tester', target: 'documentation', status: 'pending' },
-  ];
-
-  return {
-    id: 'workflow-1',
-    name: 'Feature Development Workflow',
-    status: 'running',
-    startedAt: new Date(Date.now() - 60000).toISOString(),
-    progress: 25,
-    currentNode: 'researcher',
-    nodes,
-    edges,
-    projectId: 'project-1',
-    sessionId: 'session-1',
-  };
-}
+import { api } from '@/lib/api/client';
 
 interface WorkflowState {
   // Current workflow
@@ -148,6 +25,10 @@ interface WorkflowState {
   playbackSpeed: number;
   selectedLogId: string | null;
   relatedLogs: LogCorrelation[];
+  
+  // Loading states
+  isLoading: boolean;
+  error: string | null;
   
   // Actions
   setCurrentWorkflow: (workflow: WorkflowExecution | null) => void;
@@ -164,12 +45,16 @@ interface WorkflowState {
   replayWorkflow: () => void;
   exportWorkflow: (format: 'json' | 'png' | 'svg') => void;
   reset: () => void;
+  
+  // Async actions
+  loadWorkflow: (executionId: string) => Promise<void>;
+  loadExecutions: (sessionId?: string) => Promise<void>;
 }
 
 export const useWorkflowStore = create<WorkflowState>()(
   persist(
     (set, get) => ({
-      currentWorkflow: generateMockWorkflow(),
+      currentWorkflow: null,
       workflows: [],
       selectedNodeId: null,
       selectedAgent: null,
@@ -180,6 +65,8 @@ export const useWorkflowStore = create<WorkflowState>()(
       playbackSpeed: 1,
       selectedLogId: null,
       relatedLogs: [],
+      isLoading: false,
+      error: null,
       
       setCurrentWorkflow: (workflow) => set({ currentWorkflow: workflow }),
       
@@ -337,7 +224,81 @@ export const useWorkflowStore = create<WorkflowState>()(
         playbackSpeed: 1,
         selectedLogId: null,
         relatedLogs: [],
+        isLoading: false,
+        error: null,
       }),
+      
+      // Async actions
+      loadWorkflow: async (executionId: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const execution = await api.executions.get(executionId) as Record<string, unknown>;
+          const steps = await api.executions.getSteps(executionId) as unknown[];
+          
+          // Convert execution to workflow format
+          const nodeTypes = ['planner', 'researcher', 'coder', 'reviewer', 'tester', 'documentation', 'manager', 'input', 'output', 'condition', 'tool'] as const;
+          type NodeType = typeof nodeTypes[number];
+          const nodes = (steps as Record<string, unknown>[]).map((step, index): WorkflowNodeState => {
+            const agentType = (step.agent_type as string) || 'unknown';
+            const validType: NodeType = nodeTypes.includes(agentType as NodeType) 
+              ? agentType as NodeType
+              : 'tool';
+            const durationMs = step.duration_ms as number | undefined;
+            return {
+              id: step.id as string || `node-${index}`,
+              name: agentType.charAt(0).toUpperCase() + agentType.slice(1),
+              type: validType,
+              status: (step.state as string || 'pending') as NodeStatus,
+              position: { x: 250, y: 50 + index * 100 },
+              progress: step.completed_at ? 100 : (step.started_at ? 50 : 0),
+              retryCount: step.retry_count as number || 0,
+              maxRetries: 3,
+              startedAt: step.started_at as string | undefined,
+              completedAt: step.completed_at as string | undefined,
+              duration: durationMs ? durationMs / 1000 : undefined,
+              output: step.result as string | undefined,
+              error: step.error as string | undefined,
+            };
+          });
+          
+          const edges: WorkflowEdgeState[] = [];
+          for (let i = 0; i < nodes.length - 1; i++) {
+            edges.push({
+              id: `e${i + 1}`,
+              source: nodes[i].id,
+              target: nodes[i + 1].id,
+              status: nodes[i].status === 'completed' ? 'completed' : 'pending',
+            });
+          }
+          
+          const workflow: WorkflowExecution = {
+            id: executionId,
+            name: execution.task as string || 'Execution Workflow',
+            status: (execution.state as string || 'pending') as WorkflowExecution['status'],
+            startedAt: execution.started_at as string,
+            progress: execution.progress_percent as number || 0,
+            currentNode: nodes.find(n => n.status === 'running')?.id,
+            nodes,
+            edges,
+            projectId: execution.project_id as string | undefined,
+            sessionId: execution.session_id as string,
+          };
+          
+          set({ currentWorkflow: workflow, isLoading: false });
+        } catch (error) {
+          set({ error: (error as Error).message, isLoading: false });
+        }
+      },
+      
+      loadExecutions: async (sessionId?: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const result = await api.executions.list({ sessionId, limit: 20 });
+          set({ workflows: result.executions as unknown[] as WorkflowExecution[], isLoading: false });
+        } catch (error) {
+          set({ error: (error as Error).message, isLoading: false });
+        }
+      },
     }),
     {
       name: 'nexusmind-workflow',

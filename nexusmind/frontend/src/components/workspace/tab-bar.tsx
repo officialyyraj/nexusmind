@@ -117,7 +117,7 @@ function SortableTab({
       {getIcon()}
       <span className="truncate max-w-[120px]">{tab.title}</span>
       
-      {tab.data?.modified && (
+      {(tab.data?.modified as boolean) && (
         <span className="w-2 h-2 rounded-full bg-[#e8ab53]" aria-label="Modified" />
       )}
 
@@ -391,12 +391,12 @@ export function TabBar({
         {/* Overflow Menu */}
         {overflowTabs.length > 0 && (
           <DropdownMenu open={showOverflowMenu} onOpenChange={setShowOverflowMenu}>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger>
               <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="More tabs">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
+            <DropdownMenuContent  className="max-h-64 overflow-y-auto">
               {overflowTabs.map((tab) => (
                 <DropdownMenuItem
                   key={tab.id}

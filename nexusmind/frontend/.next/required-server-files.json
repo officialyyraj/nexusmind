@@ -96,6 +96,7 @@
     "compiler": {},
     "expireTime": 31536000,
     "staticPageGenerationTimeout": 60,
+    "output": "standalone",
     "modularizeImports": {
       "@mui/icons-material": {
         "transform": "@mui/icons-material/{{member}}"
@@ -104,7 +105,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "/workspace/project/nexusmind/frontend",
+    "outputFileTracingRoot": "/workspace/project/nexusmind/nexusmind/frontend",
     "experimental": {
       "useSkewCookie": false,
       "cacheLife": {
@@ -293,10 +294,10 @@
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.js",
     "turbopack": {
-      "root": "/workspace/project/nexusmind/frontend"
+      "root": "/workspace/project/nexusmind/nexusmind/frontend"
     }
   },
-  "appDir": "/workspace/project/nexusmind/frontend",
+  "appDir": "/workspace/project/nexusmind/nexusmind/frontend",
   "relativeAppDir": "",
   "files": [
     ".next/routes-manifest.json",

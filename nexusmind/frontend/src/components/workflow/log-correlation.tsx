@@ -141,12 +141,12 @@ export function LogCorrelationPanel({ className }: LogCorrelationPanelProps) {
           
           {/* Filter */}
           <DropdownMenu open={showFilters} onOpenChange={setShowFilters}>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger>
               <Button variant="ghost" size="icon" className="h-7 w-7">
                 <Filter className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent  className="w-48">
               <DropdownMenuLabel>Filter by Level</DropdownMenuLabel>
               <DropdownMenuCheckboxItem checked>
                 Debug

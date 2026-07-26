@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import {
   FolderOpen,
   Folder,
@@ -19,6 +19,8 @@ import {
   FileJson,
   Eye,
   GitCompare,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore, type WorkspaceFile } from "@/lib/stores/workspace";
+import { api } from "@/lib/api/client";
 
 interface FileNode {
   id: string;
@@ -38,10 +41,12 @@ interface FileNode {
   type: "file" | "folder";
   children?: FileNode[];
   expanded?: boolean;
+  size?: number;
 }
 
 interface FileExplorerProps {
   className?: string;
+  sandboxId?: string;
   onFileSelect?: (file: WorkspaceFile) => void;
   onFileOpen?: (file: WorkspaceFile) => void;
   onFilePreview?: (file: WorkspaceFile) => void;
@@ -52,8 +57,8 @@ interface FileExplorerProps {
   onRenameFile?: (oldPath: string, newPath: string) => void;
 }
 
-// Mock file tree for demonstration
-const mockFileTree: FileNode[] = [
+// Demo file tree for when no sandbox is connected
+const demoFileTree: FileNode[] = [
   {
     id: "1",
     name: "src",
@@ -99,6 +104,21 @@ const mockFileTree: FileNode[] = [
     type: "file",
   },
 ];
+
+// Fetch files from sandbox
+async function fetchSandboxFiles(
+  sandboxId: string,
+  path: string
+): Promise<FileNode[]> {
+  const result = await api.sandbox.listFiles(sandboxId, path);
+  return (result.files || []).map((file, index) => ({
+    id: `${path}/${file.name}-${index}`,
+    name: file.name,
+    path: file.path || `${path}/${file.name}`,
+    type: file.type as "file" | "folder",
+    size: file.size,
+  }));
+}
 
 // Get file icon based on extension
 function getFileIcon(name: string) {
@@ -238,7 +258,7 @@ function FileTreeNode({
               <Eye className="h-3 w-3" />
             </Button>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenuTrigger>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -248,7 +268,7 @@ function FileTreeNode({
                   <MoreHorizontal className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent >
                 <DropdownMenuItem onClick={() => onOpen(node)}>
                   <File className="h-4 w-4 mr-2" /> Open
                 </DropdownMenuItem>
@@ -267,7 +287,7 @@ function FileTreeNode({
                 <DropdownMenuItem onClick={() => navigator.clipboard.writeText(node.path)}>
                   <File className="h-4 w-4 mr-2" /> Copy Relative Path
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={onDelete} className="text-red-500">
+                <DropdownMenuItem onClick={() => onDelete(node)} className="text-red-500">
                   <Trash2 className="h-4 w-4 mr-2" /> Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -300,6 +320,7 @@ function FileTreeNode({
 
 export function FileExplorer({
   className,
+  sandboxId,
   onFileSelect,
   onFileOpen,
   onFilePreview,
@@ -312,11 +333,41 @@ export function FileExplorer({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [compareFile, setCompareFile] = useState<FileNode | null>(null);
+  const [files, setFiles] = useState<FileNode[]>(demoFileTree);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["/src"]));
 
   const { openFile } = useWorkspaceStore();
 
+  // Load files from sandbox or use demo
+  useEffect(() => {
+    async function loadFiles() {
+      if (!sandboxId) {
+        setFiles(demoFileTree);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const sandboxFiles = await fetchSandboxFiles(sandboxId, "/workspace");
+        setFiles(sandboxFiles);
+      } catch (err) {
+        console.error("Failed to load sandbox files:", err);
+        setError("Failed to load sandbox files. Using demo data.");
+        setFiles(demoFileTree);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadFiles();
+  }, [sandboxId]);
+
   const filteredTree = useMemo(() => {
-    if (!searchQuery) return mockFileTree;
+    if (!searchQuery) return files;
 
     const filterTree = (nodes: FileNode[]): FileNode[] => {
       return nodes.reduce<FileNode[]>((acc, node) => {
@@ -335,50 +386,82 @@ export function FileExplorer({
       }, []);
     };
 
-    return filterTree(mockFileTree);
-  }, [searchQuery]);
+    return filterTree(files);
+  }, [searchQuery, files]);
 
-  const handleSelect = useCallback((node: FileNode) => {
+  const handleSelect = useCallback(async (node: FileNode) => {
     setSelectedFile(node.id);
+    
+    let content = "// File content would be loaded here";
+    if (node.type === "file" && sandboxId) {
+      try {
+        const file = await api.sandbox.readFile(sandboxId, node.path);
+        content = file.content;
+      } catch {
+        // Use placeholder content on error
+      }
+    }
+    
     onFileSelect?.({
       id: node.id,
       name: node.name,
       path: node.path,
-      content: "// File content would be loaded here",
+      content,
       language: node.name.split(".").pop() || "plaintext",
       modified: false,
     });
-  }, [onFileSelect]);
+  }, [sandboxId, onFileSelect]);
 
-  const handleOpen = useCallback((node: FileNode) => {
+  const handleOpen = useCallback(async (node: FileNode) => {
+    let content = "// File content would be loaded here";
+    if (node.type === "file" && sandboxId) {
+      try {
+        const file = await api.sandbox.readFile(sandboxId, node.path);
+        content = file.content;
+      } catch {
+        // Use placeholder content on error
+      }
+    }
+    
     openFile({
       id: node.id,
       name: node.name,
       path: node.path,
-      content: "// File content would be loaded here",
+      content,
       language: node.name.split(".").pop() || "plaintext",
       modified: false,
     });
+    
     onFileOpen?.({
       id: node.id,
       name: node.name,
       path: node.path,
-      content: "// File content would be loaded here",
+      content,
       language: node.name.split(".").pop() || "plaintext",
       modified: false,
     });
-  }, [openFile, onFileOpen]);
+  }, [sandboxId, openFile, onFileOpen]);
 
-  const handlePreview = useCallback((node: FileNode) => {
+  const handlePreview = useCallback(async (node: FileNode) => {
+    let content = "// File content would be loaded here";
+    if (node.type === "file" && sandboxId) {
+      try {
+        const file = await api.sandbox.readFile(sandboxId, node.path);
+        content = file.content;
+      } catch {
+        // Use placeholder content on error
+      }
+    }
+    
     onFilePreview?.({
       id: node.id,
       name: node.name,
       path: node.path,
-      content: "// File content would be loaded here",
+      content,
       language: node.name.split(".").pop() || "plaintext",
       modified: false,
     });
-  }, [onFilePreview]);
+  }, [sandboxId, onFilePreview]);
 
   const handleCompare = useCallback((node: FileNode) => {
     if (compareFile) {
@@ -404,6 +487,25 @@ export function FileExplorer({
     }
   }, [onDeleteFile]);
 
+  const handleRefresh = useCallback(async () => {
+    if (!sandboxId) {
+      setFiles(demoFileTree);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const sandboxFiles = await fetchSandboxFiles(sandboxId, "/workspace");
+      setFiles(sandboxFiles);
+    } catch (err) {
+      setError("Failed to refresh files");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sandboxId]);
+
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* Header */}
@@ -412,6 +514,11 @@ export function FileExplorer({
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Explorer
           </span>
+          {sandboxId ? (
+            <span className="text-xs text-green-500">Sandbox</span>
+          ) : (
+            <span className="text-xs text-yellow-500">Demo</span>
+          )}
           {compareFile && (
             <span className="text-xs text-yellow-500">Compare: {compareFile.name}</span>
           )}
@@ -439,9 +546,11 @@ export function FileExplorer({
             variant="ghost"
             size="icon"
             className="h-6 w-6"
+            onClick={handleRefresh}
+            disabled={isLoading}
             title="Refresh"
           >
-            <RefreshCw className="h-3 w-3" />
+            <RefreshCw className={cn("h-3 w-3", isLoading && "animate-spin")} />
           </Button>
         </div>
       </div>
@@ -460,22 +569,43 @@ export function FileExplorer({
         </div>
       </div>
 
+      {/* Loading/Error State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 px-2 py-2 text-xs text-red-400">
+          <AlertCircle className="h-3 w-3" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* File Tree */}
-      <div className="flex-1 overflow-y-auto py-1">
-        {filteredTree.map((node) => (
-          <FileTreeNode
-            key={node.id}
-            node={node}
-            depth={0}
-            onSelect={handleSelect}
-            onOpen={handleOpen}
-            onPreview={handlePreview}
-            onCompare={handleCompare}
-            onDelete={handleDelete}
-            selectedFile={selectedFile}
-          />
-        ))}
-      </div>
+      {!isLoading && (
+        <div className="flex-1 overflow-y-auto py-1">
+          {filteredTree.map((node) => (
+            <FileTreeNode
+              key={node.id}
+              node={node}
+              depth={0}
+              onSelect={handleSelect}
+              onOpen={handleOpen}
+              onPreview={handlePreview}
+              onCompare={handleCompare}
+              onDelete={handleDelete}
+              selectedFile={selectedFile}
+            />
+          ))}
+          {filteredTree.length === 0 && !isLoading && (
+            <div className="px-4 py-8 text-center text-xs text-gray-500">
+              No files found
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

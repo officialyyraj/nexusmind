@@ -14,7 +14,7 @@ import {
   CaseSensitive,
   Regex,
   WholeWord,
-  IncludeHidden,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,7 @@ export function WorkspaceSearch({
   const [regex, setRegex] = useState(searchQuery?.regex || false);
   const [caseSensitive, setCaseSensitive] = useState(searchQuery?.caseSensitive || false);
   const [wholeWord, setWholeWord] = useState(searchQuery?.wholeWord || false);
-  const [includeHidden, setIncludeHidden] = useState(searchQuery?.includeHidden || false);
+  const [includeHidden, setEyeOff] = useState(searchQuery?.includeHidden || false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -254,10 +254,10 @@ export function WorkspaceSearch({
               <Checkbox
                 id="includeHidden"
                 checked={includeHidden}
-                onCheckedChange={(checked) => setIncludeHidden(!!checked)}
+                onCheckedChange={(checked) => setEyeOff(!!checked)}
               />
               <Label htmlFor="includeHidden" className="text-sm flex items-center gap-1 cursor-pointer">
-                <IncludeHidden className="h-3 w-3" /> Hidden
+                <EyeOff className="h-3 w-3" /> Hidden
               </Label>
             </div>
           </div>

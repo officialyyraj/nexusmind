@@ -9,7 +9,7 @@ import {
   X,
   ChevronDown,
   AlignLeft,
-  AlignJustified,
+  AlignJustify,
   GitCompare,
   ArrowRight,
 } from "lucide-react";
@@ -264,7 +264,7 @@ export function DiffViewer({
                 )}
                 onClick={() => setViewMode("side-by-side")}
               >
-                <AlignJustified className="h-4 w-4" />
+                <AlignJustify className="h-4 w-4" />
               </Button>
             )}
             {showInlineMode && (
@@ -285,12 +285,12 @@ export function DiffViewer({
           {/* Actions */}
           {showAcceptReject && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenuTrigger>
                 <Button variant="outline" size="sm" className="h-7 text-xs">
                   Accept/Reject <ChevronDown className="h-3 w-3 ml-1" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent >
                 <DropdownMenuItem onClick={handleAcceptAll} className="text-green-500">
                   <Check className="h-4 w-4 mr-2" /> Accept All
                 </DropdownMenuItem>

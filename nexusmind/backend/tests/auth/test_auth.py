@@ -174,7 +174,7 @@ class TestAPIKeys:
 
     def test_hash_api_key_returns_hash(self):
         """Test that hash_api_key returns a hash."""
-        key = "nmk_test123456789"
+        key = "unit-test-key"
         hashed = hash_api_key(key)
         assert hashed != key
         assert len(hashed) == 64  # SHA256 hex digest

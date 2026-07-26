@@ -1,8 +1,6 @@
 {
   "$schema": "https://api.northflank.com/v1/schemas/template",
   "apiVersion": "v1.2",
-  "name": "nexusmind",
-  "description": "NexusMind deployment on Northflank",
   "arguments": {
     "SECRET_KEY": {
       "description": "Application secret key for JWT and session encryption",
@@ -32,10 +30,6 @@
       "description": "Branch to deploy from",
       "default": "master"
     }
-  },
-  "argumentOverrides": {
-    "SECRET_KEY": "${secret.SECRET_KEY}",
-    "SESSION_SECRET": "${secret.SESSION_SECRET}"
   },
   "spec": {
     "kind": "Workflow",
@@ -114,24 +108,15 @@
                       "name": "http",
                       "internalPort": 8000,
                       "public": false,
-                      "protocol": "HTTP"
+                      "protocol": "HTTP",
+                      "security": {
+                        "credentials": [],
+                        "policies": [],
+                        "sso": {}
+                      }
                     }
                   ],
-                  "env": [
-                    {
-                      "key": "IS_PERSISTENT",
-                      "value": "TRUE"
-                    },
-                    {
-                      "key": "ANONYMIZED_TELEMETRY",
-                      "value": "FALSE"
-                    }
-                  ],
-                  "healthCheck": {
-                    "http": {
-                      "path": "/api/v1/heartbeat"
-                    }
-                  }
+                  "runtimeEnvironment": {}
                 }
               },
               {
@@ -157,68 +142,14 @@
                       "name": "http",
                       "internalPort": 8000,
                       "public": false,
-                      "protocol": "HTTP"
+                      "protocol": "HTTP",
+                      "security": {
+                        "credentials": [],
+                        "policies": [],
+                        "sso": {}
+                      }
                     }
                   ],
-                  "env": [
-                    {
-                      "key": "ENVIRONMENT",
-                      "value": "production"
-                    },
-                    {
-                      "key": "DATABASE_URL",
-                      "value": "${refs.postgres.connectionString}"
-                    },
-                    {
-                      "key": "REDIS_URL",
-                      "value": "${refs.redis.connectionString}"
-                    },
-                    {
-                      "key": "CHROMADB_URL",
-                      "value": "http://chromadb:8000"
-                    },
-                    {
-                      "key": "SECRET_KEY",
-                      "value": "${args.SECRET_KEY}"
-                    },
-                    {
-                      "key": "SESSION_SECRET",
-                      "value": "${args.SESSION_SECRET}"
-                    },
-                    {
-                      "key": "LOG_LEVEL",
-                      "value": "${args.LOG_LEVEL}"
-                    },
-                    {
-                      "key": "CORS_ORIGINS",
-                      "value": "${args.CORS_ORIGINS}"
-                    },
-                    {
-                      "key": "API_PREFIX",
-                      "value": "/api/v1"
-                    },
-                    {
-                      "key": "OLLAMA_BASE_URL",
-                      "value": "${args.OLLAMA_BASE_URL}"
-                    },
-                    {
-                      "key": "SANDBOX_TIMEOUT_SECONDS",
-                      "value": "300"
-                    },
-                    {
-                      "key": "WORKSPACE_ROOT",
-                      "value": "/app/workspace"
-                    },
-                    {
-                      "key": "PLUGINS_DIRECTORY",
-                      "value": "/app/plugins"
-                    }
-                  ],
-                  "healthCheck": {
-                    "http": {
-                      "path": "/health/live"
-                    }
-                  },
                   "buildSource": "git",
                   "vcsData": {
                     "projectUrl": "${args.GITHUB_REPO}",
@@ -231,26 +162,12 @@
                       "dockerWorkDir": "/nexusmind/backend"
                     }
                   },
-                  "buildConfiguration": {
-                    "branchRestrictions": ["${args.BRANCH}"]
-                  },
+                  "buildConfiguration": {},
                   "buildArguments": {
                     "ENVIRONMENT": "production"
                   },
-                  "waitForConditions": [
-                    {
-                      "addonRef": "postgres",
-                      "condition": "running"
-                    },
-                    {
-                      "addonRef": "redis",
-                      "condition": "running"
-                    },
-                    {
-                      "serviceRef": "chromadb",
-                      "condition": "running"
-                    }
-                  ]
+                  "disabledCI": false,
+                  "runtimeEnvironment": {}
                 }
               },
               {
@@ -276,24 +193,14 @@
                       "name": "http",
                       "internalPort": 3000,
                       "public": true,
-                      "protocol": "HTTP"
+                      "protocol": "HTTP",
+                      "security": {
+                        "credentials": [],
+                        "policies": [],
+                        "sso": {}
+                      }
                     }
                   ],
-                  "env": [
-                    {
-                      "key": "NODE_ENV",
-                      "value": "production"
-                    },
-                    {
-                      "key": "NEXT_TELEMETRY_DISABLED",
-                      "value": "1"
-                    }
-                  ],
-                  "healthCheck": {
-                    "http": {
-                      "path": "/"
-                    }
-                  },
                   "buildSource": "git",
                   "vcsData": {
                     "projectUrl": "${args.GITHUB_REPO}",
@@ -306,19 +213,13 @@
                       "dockerWorkDir": "/nexusmind/frontend"
                     }
                   },
-                  "buildConfiguration": {
-                    "branchRestrictions": ["${args.BRANCH}"]
-                  },
+                  "buildConfiguration": {},
                   "buildArguments": {
                     "NEXT_PUBLIC_API_URL": "http://backend:8000/api/v1",
                     "NEXT_PUBLIC_WS_URL": "ws://backend:8000"
                   },
-                  "waitForConditions": [
-                    {
-                      "serviceRef": "backend",
-                      "condition": "running"
-                    }
-                  ]
+                  "disabledCI": false,
+                  "runtimeEnvironment": {}
                 }
               }
             ]
@@ -326,5 +227,16 @@
         }
       ]
     }
+  },
+  "options": {
+    "autorun": false,
+    "concurrencyPolicy": "allow"
+  },
+  "gitops": {
+    "repoUrl": "https://github.com/officialyyraj/nexusmind",
+    "vcsService": "github",
+    "accountLogin": "officialyyraj",
+    "branch": "master",
+    "filePath": "/northflank.yaml"
   }
 }

@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     anthropic_base_url: str = "https://api.anthropic.com"
 
     # ChromaDB
+    chromadb_url: str = ""  # Remote ChromaDB URL (e.g., http://chromadb:8000)
     chromadb_persist_directory: str = "./data/chromadb"
     chromadb_collection_name: str = "nexusmind_memory"
 

@@ -1,0 +1,159 @@
+# Northflank deployment configuration for NexusMind
+# Repository: https://github.com/officialyyraj/nexusmind
+
+version: "1"
+
+project:
+  name: nexusmind
+  region: eu
+
+# Persistent storage volumes
+volumes:
+  postgres-data:
+    size_gb: 10
+    mount_path: /var/lib/postgresql/data
+  redis-data:
+    size_gb: 1
+    mount_path: /data
+  chromadb-data:
+    size_gb: 5
+    mount_path: /data/chromadb
+  workspace-data:
+    size_gb: 10
+    mount_path: /app/workspace
+  plugins-data:
+    size_gb: 2
+    mount_path: /app/plugins
+
+# Addon services (managed databases)
+addons:
+  postgres:
+    instance: postgres
+    version: "15"
+    plan: minimal
+    volume: postgres-data
+
+  redis:
+    instance: redis
+    version: "7"
+    plan: minimal
+    volume: redis-data
+
+# Service definitions
+services:
+  chromadb:
+    image: ghcr.io/chroma-core/chroma:0.4.22
+    instance_size: small
+    instances: 1
+    ports:
+      - 8000
+    health_check:
+      path: /api/v1/heartbeat
+      interval_seconds: 30
+      timeout_seconds: 10
+      failure_threshold: 3
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    volumes:
+      - chromadb-data:/data/chromadb
+    deployment_strategy: recreate
+
+  backend:
+    build:
+      context: ./nexusmind/backend
+      dockerfile: Dockerfile
+    instance_size: small
+    instances: 1
+    ports:
+      - 8000
+    health_check:
+      path: /health/live
+      interval_seconds: 30
+      timeout_seconds: 10
+      failure_threshold: 3
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=${{addon.postgres.connection_string}}
+      - REDIS_URL=${{addon.redis.connection_string}}
+      - CHROMADB_URL=http://chromadb:8000
+      - SECRET_KEY=${{secret.SECRET_KEY}}
+      - SESSION_SECRET=${{secret.SESSION_SECRET}}
+      - LOG_LEVEL=${{var.LOG_LEVEL}}
+      - CORS_ORIGINS=${{var.CORS_ORIGINS}}
+      - API_PREFIX=/api/v1
+      - OLLAMA_BASE_URL=${{var.OLLAMA_BASE_URL}}
+      - SANDBOX_TIMEOUT_SECONDS=300
+      - WORKSPACE_ROOT=/app/workspace
+      - PLUGINS_DIRECTORY=/app/plugins
+    volumes:
+      - workspace-data:/app/workspace
+      - plugins-data:/app/plugins
+    depends_on:
+      - postgres
+      - redis
+      - chromadb
+    deployment_strategy: recreate
+
+  frontend:
+    build:
+      context: ./nexusmind/frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+        - NEXT_PUBLIC_WS_URL=ws://backend:8000
+    instance_size: small
+    instances: 1
+    ports:
+      - 3000
+    health_check:
+      path: /
+      interval_seconds: 30
+      timeout_seconds: 10
+      failure_threshold: 3
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    depends_on:
+      - backend
+    deployment_strategy: recreate
+
+# Secrets (to be configured manually in Northflank dashboard)
+secrets:
+  SECRET_KEY:
+    description: "Application secret key for JWT and session encryption"
+    generator: strong
+  SESSION_SECRET:
+    description: "Session encryption secret"
+    generator: strong
+
+# Environment variables (can be configured in Northflank dashboard)
+vars:
+  LOG_LEVEL:
+    default: INFO
+    description: "Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+  CORS_ORIGINS:
+    default: "https://your-domain.com"
+    description: "Comma-separated list of allowed CORS origins"
+  API_PREFIX:
+    default: /api/v1
+    description: "API URL prefix"
+  OLLAMA_BASE_URL:
+    default: "http://localhost:11434"
+    description: "Ollama API base URL (optional - leave default if not using Ollama)"
+
+# Build triggers
+triggers:
+  on_push_to_main:
+    branch: master
+    action: redeploy_all
+
+# Notes for deployment:
+# 1. This configuration requires Northflank account with sufficient quota
+# 2. Add secrets in Northflank dashboard before deploying:
+#    - SECRET_KEY: Generate a strong random string
+#    - SESSION_SECRET: Generate another strong random string
+# 3. Update CORS_ORIGINS with your actual domain before deployment
+# 4. Backend health check uses /health/live endpoint
+# 5. Frontend is accessed via Northflank's built-in HTTP routing
+# 6. ChromaDB uses the official Docker image with persistent storage

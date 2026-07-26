@@ -114,7 +114,17 @@ class HealthService:
         start = time.perf_counter()
         try:
             import chromadb
-            client = chromadb.Client()
+            from chromadb.config import Settings
+            
+            chromadb_url = self._settings.chromadb_url
+            if chromadb_url and chromadb_url.startswith('http'):
+                # Use HTTP client for remote ChromaDB
+                host = chromadb_url.replace('http://', '').replace('https://', '').split('/')[0]
+                client = chromadb.HttpClient(host=host, settings=Settings(anonymized_telemetry=False))
+            else:
+                # Use default client for local ChromaDB
+                client = chromadb.Client()
+            
             client.heartbeat()
             latency = (time.perf_counter() - start) * 1000
             return ComponentHealth(

@@ -103,9 +103,20 @@ class ChromaMemoryService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.client = chromadb.PersistentClient(
-            path=self.settings.chromadb_persist_directory,
-        )
+        
+        # Support both local and remote ChromaDB connections
+        chromadb_url = getattr(self.settings, 'chromadb_url', None)
+        if chromadb_url and chromadb_url.startswith('http'):
+            # Use HTTP client for remote ChromaDB service
+            self.client = chromadb.HttpClient(
+                host=chromadb_url.replace('http://', '').replace('https://', '').split('/')[0],
+                settings=Settings(anonymized_telemetry=False),
+            )
+        else:
+            # Use persistent client for local storage
+            self.client = chromadb.PersistentClient(
+                path=self.settings.chromadb_persist_directory,
+            )
 
         # Create collections for each memory type
         self._init_collections()

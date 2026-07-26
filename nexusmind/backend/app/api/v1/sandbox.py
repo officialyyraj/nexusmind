@@ -165,7 +165,7 @@ async def terminal_command(
 async def list_files(
     sandbox_id: str,
     user: AuthenticatedUser,
-    path: str = "/app/workspace",
+    path: str = "/workspace",
 ) -> FileListResponse:
     """List files in sandbox."""
     sandbox_service = get_sandbox()
@@ -179,13 +179,20 @@ async def list_files(
         )
     
     try:
-        files = await sandbox_service.list_files(sandbox_id, path)
+        files, error = await sandbox_service.list_files(sandbox_id, path)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error,
+            )
         return FileListResponse(files=files)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -211,7 +218,12 @@ async def read_file(
         )
     
     try:
-        content = await sandbox_service.read_file(sandbox_id, path)
+        content, error = await sandbox_service.read_file(sandbox_id, path)
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error,
+            )
         if content is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -254,7 +266,7 @@ async def write_file(
         )
     
     try:
-        success = await sandbox_service.write_file(
+        success, error = await sandbox_service.write_file(
             sandbox_id=sandbox_id,
             path=data.path,
             content=data.content,
@@ -262,8 +274,8 @@ async def write_file(
         
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to write file",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error or "Failed to write file",
             )
         
         return FileWriteResponse(

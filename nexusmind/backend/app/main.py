@@ -17,7 +17,7 @@ from app.api.v1.sandbox import router as sandbox_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.executions import router as executions_router
-from app.api.ws import router as ws_router
+from app.api.v1.ws import router as ws_router
 from app.auth.routes import router as auth_router
 from app.tools.browser.api import router as browser_router
 from app.monitoring.routes import router as monitoring_router
@@ -33,14 +33,38 @@ logger = get_logger(__name__)
 # Initialize telemetry
 telemetry = get_telemetry_service()
 
+# Global flag for startup status
+_startup_complete = False
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
+    global _startup_complete
     settings = get_settings()
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Debug mode: {settings.debug}")
+
+    # Run zero-touch initialization if not already done
+    if not _startup_complete:
+        try:
+            from app.init import initialize_all, StartupError as InitError
+            results = await initialize_all()
+            _startup_complete = True
+            logger.info("Zero-touch initialization completed successfully")
+            for item in results.get("initialized", []):
+                logger.info(f"  - {item}: OK")
+        except InitError as e:
+            logger.error(f"Initialization failed: {e}")
+            if e.service:
+                logger.error(f"  Service: {e.service}")
+            if e.hint:
+                logger.error(f"  Hint: {e.hint}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected initialization error: {e}")
+            raise
 
     # Initialize MCP servers
     try:

@@ -1,4 +1,22 @@
+# Next.js
+**/.next/
+
+# Python
 __pycache__/
 *.pyc
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Coverage
 .coverage
-.pytest_cache/
+htmlcov/
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/

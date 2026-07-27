@@ -38,7 +38,7 @@ class Artifact(Base, TimestampMixin):
     mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    artifact_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     # Relationships
     session = relationship("Session", back_populates="artifacts")
@@ -91,7 +91,7 @@ class Task(Base, TimestampMixin):
     retry_count: Mapped[int] = mapped_column(default=0, nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    task_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     # Relationships
     session = relationship("Session", back_populates="tasks")

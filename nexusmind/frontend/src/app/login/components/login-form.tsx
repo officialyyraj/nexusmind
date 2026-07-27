@@ -36,7 +36,8 @@ export function LoginForm({ mode: initialMode = "login" }: LoginFormProps) {
         router.refresh();
       } else {
         // Register new user
-        const response = await fetch("/api/v1/auth/register", {
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+        const response = await fetch(`${API_BASE}/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password, name: name || undefined }),

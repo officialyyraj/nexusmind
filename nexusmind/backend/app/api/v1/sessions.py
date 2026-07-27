@@ -278,7 +278,7 @@ async def list_messages(
             role=msg.role,
             content=msg.content,
             agent_type=msg.agent_type,
-            metadata=msg.metadata or {},
+            metadata=msg.msg_metadata or {},
             created_at=msg.created_at,
         )
         for msg in messages
@@ -309,7 +309,7 @@ async def create_message(
         role=data.role,
         content=data.content,
         agent_type=data.agent_type,
-        metadata=data.metadata,
+        msg_metadata=data.metadata,
     )
     db.add(message)
     await db.flush()
@@ -321,7 +321,7 @@ async def create_message(
         role=message.role,
         content=message.content,
         agent_type=message.agent_type,
-        metadata=message.metadata or {},
+        metadata=message.msg_metadata or {},
         created_at=message.created_at,
     )
 

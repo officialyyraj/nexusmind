@@ -69,7 +69,7 @@ class AuthService:
         if not user.is_active:
             return None
         # Update last login
-        user.last_login = datetime.now(timezone.utc)
+        user.last_login = datetime.utcnow()
         await self.db.flush()
         return user
 
@@ -119,7 +119,7 @@ class AuthService:
         if api_key.is_expired:
             return None
         # Update last used
-        api_key.last_used_at = datetime.now(timezone.utc)
+        api_key.last_used_at = datetime.utcnow()
         await self.db.flush()
         return api_key
 

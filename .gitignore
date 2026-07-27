@@ -4,7 +4,7 @@
 # Python
 __pycache__/
 *.pyc
-
+AUDIT_REPORT.md
 # Env files
 .env
 .env.*

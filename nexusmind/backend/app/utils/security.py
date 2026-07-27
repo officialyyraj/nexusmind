@@ -139,7 +139,7 @@ def decode_access_token_strict(token: str) -> dict[str, Any]:
         raise ExpiredTokenError("Token has expired")
     except jwt.JWTClaimsError:
         raise InvalidTokenError("Invalid token claims")
-    except jwt.DecodeError:
+    except jwt.JWSError:
         raise MalformedTokenError("Token is malformed")
     except JWTError as e:
         raise InvalidTokenError(f"Token validation failed: {str(e)}")

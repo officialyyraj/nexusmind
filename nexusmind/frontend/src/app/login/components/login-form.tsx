@@ -21,7 +21,7 @@ export function LoginForm({ mode: initialMode = "login" }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, error: authError } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,7 +54,8 @@ export function LoginForm({ mode: initialMode = "login" }: LoginFormProps) {
         router.refresh();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const errorMsg = err instanceof Error ? err.message : "An error occurred";
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -79,9 +80,9 @@ export function LoginForm({ mode: initialMode = "login" }: LoginFormProps) {
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          {error && (
+          {(error || authError) && (
             <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-              {error}
+              {error || authError}
             </div>
           )}
 

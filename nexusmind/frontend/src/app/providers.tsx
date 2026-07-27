@@ -18,8 +18,8 @@ function ProtectedRoutesHandler({ children }: { children: ReactNode }) {
   // Don't redirect on public routes
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname?.startsWith(route));
 
-  // Show loading state while checking authentication
-  if (isLoading && !hasRedirected) {
+  // Show loading state while checking authentication (but not on public routes)
+  if (isLoading && !hasRedirected && !isPublicRoute) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

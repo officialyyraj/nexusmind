@@ -1,7 +1,7 @@
 """Authentication API endpoints."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
@@ -164,7 +164,7 @@ async def create_api_key(
 
     expires_at = None
     if request.expires_in_days:
-        expires_at = datetime.utcnow() + datetime.timedelta(days=request.expires_in_days)
+        expires_at = datetime.utcnow() + timedelta(days=request.expires_in_days)
 
     api_key, plain_key = await service.create_api_key(
         user_id=user.id,

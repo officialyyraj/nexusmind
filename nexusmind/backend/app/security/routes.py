@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from app.dependencies import AdminUser, DbSession
 from app.security.audit import ACTION_SEVERITY, AuditAction, AuditLevel, AuditLog, AuditService
-from app.security.rbac import RBACService, Role
+from app.security.rbac import RBACService, Permission, Role
 
 
 router = APIRouter()

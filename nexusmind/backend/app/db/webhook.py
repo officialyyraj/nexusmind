@@ -40,7 +40,7 @@ class Webhook(Base, TimestampMixin):
     delivery_count: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     failure_count: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     headers: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    webhook_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     # Relationships
     user = relationship("User", backref="webhooks")

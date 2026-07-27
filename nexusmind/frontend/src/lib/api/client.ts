@@ -1,3 +1,4 @@
+import { getToken } from '@/lib/auth';
 import type { Agent, Session, Message, Project, Plugin, MemoryItem, LogEntry, Model, 
                  MCPServerConfig, MCPServerInfo, MCPServerHealth, MCPTool, MCPToolInvocationResult, MCPStatus } from '@/types';
 
@@ -5,14 +6,61 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v
 const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  // Get the auth token if available
+  const token = getToken();
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Add auth header if token is available
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  // Merge with any custom headers passed in options
+  if (options.headers) {
+    const customHeaders = options.headers as Record<string, string>;
+    Object.assign(headers, customHeaders);
+  }
+  
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
-  if (!res.ok) throw new Error(await res.text());
+  
+  // Handle 401 Unauthorized - clear token and redirect to login
+  if (res.status === 401) {
+    if (typeof window !== 'undefined') {
+      // Import dynamically to avoid circular dependency issues
+      import('@/lib/auth').then(({ clearAuth }) => {
+        clearAuth();
+        // Only redirect if not already on login page
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+      });
+    }
+    throw new Error('Unauthorized');
+  }
+  
+  if (!res.ok) {
+    let errorDetail = `HTTP error ${res.status}`;
+    try {
+      const errorData = await res.json();
+      errorDetail = errorData.detail || errorDetail;
+    } catch {
+      // If parsing fails, use the status text
+      errorDetail = res.statusText || errorDetail;
+    }
+    throw new Error(errorDetail);
+  }
+  
+  // Handle 204 No Content
+  if (res.status === 204) {
+    return undefined as T;
+  }
+  
   return res.json();
 }
 
@@ -143,8 +191,9 @@ export const api = {
 
 // WebSocket URL helper
 export function getWebSocketUrl(sessionId?: string): string {
+  const token = getToken();
   if (sessionId) {
-    return `${WS_BASE}/ws/sessions/${sessionId}`;
+    return `${WS_BASE}/ws/sessions/${sessionId}${token ? `?token=${token}` : ''}`;
   }
-  return `${WS_BASE}/ws`;
+  return `${WS_BASE}/ws${token ? `?token=${token}` : ''}`;
 }

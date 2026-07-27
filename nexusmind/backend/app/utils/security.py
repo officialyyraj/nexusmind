@@ -118,6 +118,7 @@ def decode_access_token_strict(token: str) -> dict[str, Any]:
             token,
             settings.secret_key,
             algorithms=[settings.jwt_algorithm],
+            audience="nexusmind-api",
             options={
                 "require_sub": True,
                 "require_exp": True,
@@ -136,9 +137,9 @@ def decode_access_token_strict(token: str) -> dict[str, Any]:
         
     except jwt.ExpiredSignatureError:
         raise ExpiredTokenError("Token has expired")
-    except jwt.InvalidSignatureError:
-        raise InvalidTokenError("Invalid token signature")
-    except jwt.DecodeError:
+    except jwt.JWTClaimsError:
+        raise InvalidTokenError("Invalid token claims")
+    except jwt.JWSError:
         raise MalformedTokenError("Token is malformed")
     except JWTError as e:
         raise InvalidTokenError(f"Token validation failed: {str(e)}")

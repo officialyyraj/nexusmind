@@ -17,10 +17,11 @@ from app.api.v1.sandbox import router as sandbox_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.executions import router as executions_router
-from app.api.v1.ws import router as ws_router
 from app.auth.routes import router as auth_router
 from app.tools.browser.api import router as browser_router
 from app.monitoring.routes import router as monitoring_router
+from app.security.middleware import setup_security_middleware
+from app.security.routes import router as security_router
 from app.config import get_settings
 from app.utils.logger import get_logger, set_request_id, setup_logging, generate_request_id
 from app.monitoring.metrics import get_metrics_service
@@ -127,6 +128,9 @@ def create_app() -> FastAPI:
         allow_headers=settings.cors_headers,
     )
 
+    # Setup security middleware (must be added after CORS but before routes)
+    setup_security_middleware(app)
+
     # Add request ID middleware
     @app.middleware("http")
     async def add_request_id(request: Request, call_next: Any) -> Any:
@@ -181,6 +185,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     api_prefix = settings.api_prefix
     app.include_router(auth_router, prefix=f"{api_prefix}/auth")
+    app.include_router(security_router, prefix=f"{api_prefix}/security")
     app.include_router(sessions_router, prefix=f"{api_prefix}/sessions")
     app.include_router(agents_router, prefix=f"{api_prefix}/agents")
     app.include_router(sandbox_router, prefix=f"{api_prefix}/sandbox")
@@ -193,9 +198,6 @@ def create_app() -> FastAPI:
 
     # Include monitoring routes (no prefix for /health, /metrics)
     app.include_router(monitoring_router)
-
-    # WebSocket routes (no prefix, uses /ws path directly)
-    app.include_router(ws_router)
 
     # Health check endpoint
     @app.get("/health", tags=["health"])

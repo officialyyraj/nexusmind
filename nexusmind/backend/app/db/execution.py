@@ -189,7 +189,7 @@ class Execution(Base, TimestampMixin):
     )
     
     # Metadata
-    metadata: Mapped[dict[str, Any]] = mapped_column(
+    exec_metadata: Mapped[dict[str, Any]] = mapped_column(
         JSON,
         default=dict,
         nullable=False,

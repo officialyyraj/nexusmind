@@ -116,7 +116,7 @@ def execution_to_detail_response(execution) -> ExecutionDetailResponse:
         agent_timings=execution.agent_timings,
         cancelled_at=execution.cancelled_at,
         cancelled_by=execution.cancelled_by,
-        metadata=execution.metadata,
+        metadata=execution.exec_metadata,
     )
 
 

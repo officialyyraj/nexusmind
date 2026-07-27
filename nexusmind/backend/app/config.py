@@ -27,8 +27,15 @@ class Settings(BaseSettings):
     # API
     api_prefix: str = "/api/v1"
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
-    cors_methods: list[str] = ["*"]
-    cors_headers: list[str] = ["*"]
+    cors_methods: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    cors_headers: list[str] = [
+        "Accept",
+        "Authorization",
+        "Content-Type",
+        "X-Request-ID",
+        "X-Correlation-ID",
+        "X-CSRF-Token",
+    ]
 
     # Database
     database_url: str = "postgresql://postgres:postgres@localhost:5432/nexusmind"

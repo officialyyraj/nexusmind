@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -121,11 +121,11 @@ class TimestampMixin:
     """Mixin for created_at and updated_at timestamps."""
 
     created_at: Mapped[datetime] = mapped_column(
-        server_default="CURRENT_TIMESTAMP",
+        server_default=text("CURRENT_TIMESTAMP"),
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
-        server_default="CURRENT_TIMESTAMP",
-        onupdate="CURRENT_TIMESTAMP",
+        server_default=text("CURRENT_TIMESTAMP"),
+        onupdate=text("CURRENT_TIMESTAMP"),
         nullable=False,
     )

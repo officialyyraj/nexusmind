@@ -45,7 +45,7 @@ class Message(Base, TimestampMixin):
         ForeignKey("messages.id", ondelete="SET NULL"),
         nullable=True,
     )
-    metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    msg_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     tokens_used: Mapped[int | None] = mapped_column(nullable=True)
 
     # Relationships
@@ -64,6 +64,6 @@ class Message(Base, TimestampMixin):
             "role": self.role,
             "content": self.content,
             "agent_type": self.agent_type,
-            "metadata": self.metadata,
+            "metadata": self.msg_metadata,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

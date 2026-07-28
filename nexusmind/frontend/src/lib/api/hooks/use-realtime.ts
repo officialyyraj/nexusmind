@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback } from "react";
 import { useWebSocket, usePolling } from "@/lib/api/websocket";
-import { useRealtimeStore } from "@/lib/stores/realtime";
+import { useRealtimeStore, mapExecutionStateToStatus } from "@/lib/stores/realtime";
 import { getWebSocketUrl, api } from "@/lib/api/client";
 
 export interface UseRealtimeOptions {
@@ -77,6 +77,7 @@ export function useRealtime(options: UseRealtimeOptions = {}) {
         store.updateExecution({
           executionId: execution.id as string,
           state: execution.state as string,
+          status: mapExecutionStateToStatus(execution.state as string),
           progress: (execution.progress_percent as number) || 0,
           currentAgent: execution.current_agent as string | undefined,
           step: execution.current_step_index as number | undefined,

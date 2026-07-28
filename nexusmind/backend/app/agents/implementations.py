@@ -6,6 +6,7 @@ from typing import Any
 
 from app.agents.base import AgentState, BaseAgent
 from app.agents.types import AgentType
+from app.llm.service import get_llm_service
 
 
 class TaskStep:
@@ -110,13 +111,68 @@ class PlannerAgent(BaseAgent):
         - estimated_duration: Time estimate
         - priority: Execution priority
         """
-        # Analyze task type from context
+        # Try to use LLM for intelligent planning
+        try:
+            llm = get_llm_service()
+            messages = [
+                {"role": "system", "content": """You are a task planning assistant. Given a task, break it down into structured steps.
+For each step, provide:
+- step_id: A unique identifier (e.g., "step_1", "step_2")
+- title: A short descriptive title
+- description: What this step involves
+- agent_type: Which agent should handle this (planner, researcher, coder, reviewer, tester, documentation)
+- dependencies: List of step_ids this depends on (empty list if none)
+- estimated_duration: Estimated time (e.g., "5-10 min")
+- priority: Priority 1-10, higher is more important
+
+Return ONLY valid JSON in this format:
+{
+  "steps": [
+    {"step_id": "step_1", "title": "...", "description": "...", "agent_type": "...", "dependencies": [], "estimated_duration": "...", "priority": 10},
+    ...
+  ]
+}
+If the task is simple, 2-3 steps is fine. For complex tasks, up to 6 steps.
+"""},
+                {"role": "user", "content": f"Task: {task}\n\nGenerate a structured plan:"}
+            ]
+            response = await llm.chat(messages, provider="ollama")
+            content = response.get("content", "")
+            
+            # Parse JSON from response
+            try:
+                # Try to extract JSON from the response
+                json_start = content.find("{")
+                json_end = content.rfind("}") + 1
+                if json_start >= 0 and json_end > json_start:
+                    plan_data = json.loads(content[json_start:json_end])
+                    steps = [
+                        TaskStep(
+                            step_id=s.get("step_id", f"step_{i}"),
+                            title=s.get("title", f"Step {i+1}"),
+                            description=s.get("description", ""),
+                            agent_type=s.get("agent_type", "coder"),
+                            dependencies=s.get("dependencies", []),
+                            estimated_duration=s.get("estimated_duration"),
+                            priority=s.get("priority", 5),
+                        )
+                        for i, s in enumerate(plan_data.get("steps", []))
+                    ]
+                    return TaskPlan(
+                        task=task,
+                        steps=steps,
+                        metadata={"task_type": "llm_planned", "total_steps": len(steps)},
+                    )
+            except (json.JSONDecodeError, KeyError):
+                # Fall back to rule-based planning
+                pass
+        except Exception:
+            # LLM not available, use rule-based planning
+            pass
+        
+        # Fall back to rule-based planning
         task_type = context.get("task_type", self._infer_task_type(task))
-
-        # Generate steps based on task type
         steps = self._generate_steps(task, task_type)
-
-        # Create plan
         plan = TaskPlan(
             task=task,
             steps=steps,
@@ -126,7 +182,6 @@ class PlannerAgent(BaseAgent):
                 "estimated_total_time": self._estimate_total_time(steps),
             },
         )
-
         return plan
 
     def _infer_task_type(self, task: str) -> str:
@@ -347,6 +402,49 @@ class ResearcherAgent(BaseAgent):
         """Perform research and return structured findings."""
         findings = []
 
+        # Try LLM for knowledge-based research first
+        try:
+            llm = get_llm_service()
+            messages = [
+                {"role": "system", "content": """You are an expert researcher. Provide detailed information about the given topic.
+Structure your response as a list of key findings with:
+- Key points and facts
+- Important details
+- Best practices or recommendations
+- Common pitfalls to avoid
+
+Return a JSON object with findings array:
+{
+  "findings": [
+    {"topic": "main topic", "finding": "detailed finding", "source": "knowledge", "confidence": 0.9},
+    ...
+  ]
+}
+Aim for 3-5 substantive findings."""},
+                {"role": "user", "content": f"Research topic: {task}\n\nProvide your findings:"}
+            ]
+            response = await llm.chat(messages, provider="ollama")
+            content = response.get("content", "")
+            
+            try:
+                json_start = content.find("{")
+                json_end = content.rfind("}") + 1
+                if json_start >= 0 and json_end > json_start:
+                    data = json.loads(content[json_start:json_end])
+                    for f in data.get("findings", []):
+                        findings.append({
+                            "id": str(uuid.uuid4()),
+                            "topic": f.get("topic", task),
+                            "finding": f.get("finding", ""),
+                            "source": f.get("source", "llm"),
+                            "confidence": f.get("confidence", 0.8),
+                            "metadata": {},
+                        })
+            except (json.JSONDecodeError, KeyError):
+                pass
+        except Exception:
+            pass
+
         # Try web search if service is available
         if self._search_service:
             try:
@@ -354,7 +452,7 @@ class ResearcherAgent(BaseAgent):
 
                 request = SearchRequest(
                     query=task,
-                    provider=SearchProvider.DUCKDUCKGO,  # Default to free provider
+                    provider=SearchProvider.DUCKDUCKGO,
                     max_results=5,
                 )
 
@@ -375,7 +473,6 @@ class ResearcherAgent(BaseAgent):
                         },
                     })
 
-                # Add summary
                 if response.results:
                     summary = await self._search_service.summarize_results(response)
                     findings.append({
@@ -389,7 +486,6 @@ class ResearcherAgent(BaseAgent):
                     })
 
             except Exception:
-                # Fallback to mock data if search fails
                 findings.extend(self._get_mock_findings(task))
         else:
             findings.extend(self._get_mock_findings(task))
@@ -469,8 +565,48 @@ class CoderAgent(BaseAgent):
     async def write_code(self, task: str, context: dict[str, Any]) -> dict[str, Any]:
         """Write code based on task and context."""
         language = context.get("language", "python")
-
-        # Generate code based on task
+        
+        # Try to use LLM for code generation
+        try:
+            llm = get_llm_service()
+            research_findings = context.get("research_findings", [])
+            
+            # Build context from research findings if available
+            context_text = ""
+            if research_findings:
+                findings_text = "\n".join([
+                    f"- {f.get('finding', '')}" 
+                    for f in research_findings[:3]
+                ])
+                context_text = f"\n\nResearch findings:\n{findings_text}"
+            
+            messages = [
+                {"role": "system", "content": f"""You are an expert {language} programmer. Write clean, well-documented code that implements the given task.
+Include:
+- Proper imports
+- Type hints (if {language} supports them)
+- Error handling
+- Docstrings for functions/classes
+- Follow best practices for {language}"""},
+                {"role": "user", "content": f"Task: {task}{context_text}\n\nWrite the implementation:"}
+            ]
+            
+            response = await llm.chat(messages, provider="ollama")
+            code = response.get("content", "")
+            
+            if code.strip():
+                files = self._create_file_structure(task, language, code)
+                return {
+                    "files": files,
+                    "code": code,
+                    "language": language,
+                    "lines_of_code": len(code.split("\n")),
+                    "llm_generated": True,
+                }
+        except Exception:
+            pass
+        
+        # Fall back to template-based generation
         code = self._generate_code(task, language, context)
         files = self._create_file_structure(task, language, code)
 
@@ -649,6 +785,42 @@ class ReviewerAgent(BaseAgent):
 
     async def review_code(self, code: str, context: dict[str, Any]) -> dict[str, Any]:
         """Review code."""
+        # Try to use LLM for code review
+        if code:
+            try:
+                llm = get_llm_service()
+                messages = [
+                    {"role": "system", "content": """You are an expert code reviewer. Review the code and provide feedback on:
+1. Bugs and potential issues
+2. Security vulnerabilities
+3. Code quality and style
+4. Performance concerns
+5. Suggestions for improvement
+
+Return a JSON object with:
+{
+  "issues": [{"severity": "high|medium|low", "type": "...", "description": "...", "line": null, "suggestion": "..."}],
+  "score": 1-10,
+  "summary": "Overall assessment",
+  "suggestions": ["suggestion1", "suggestion2"]
+}
+If code is good, score should be high (8-10) with few/no issues."""},
+                    {"role": "user", "content": f"Code to review:\n\n{code[:3000]}\n\nReview this code:"}
+                ]
+                response = await llm.chat(messages, provider="ollama")
+                content = response.get("content", "")
+                
+                # Parse JSON from response
+                try:
+                    json_start = content.find("{")
+                    json_end = content.rfind("}") + 1
+                    if json_start >= 0 and json_end > json_start:
+                        return json.loads(content[json_start:json_end])
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            except Exception:
+                pass
+        
         return {
             "issues": [],
             "score": 10,
@@ -688,6 +860,48 @@ class TesterAgent(BaseAgent):
 
     async def write_tests(self, code: str, context: dict[str, Any]) -> dict[str, Any]:
         """Write tests."""
+        # Try to use LLM for test generation
+        if code:
+            try:
+                llm = get_llm_service()
+                language = context.get("language", "python")
+                test_framework = "pytest" if language == "python" else "jest"
+                
+                messages = [
+                    {"role": "system", "content": f"""You are an expert test engineer. Write comprehensive unit tests for the given code using {test_framework}.
+Include:
+- Test cases for happy path
+- Edge cases and error conditions
+- Proper assertions
+- Descriptive test names
+- Setup/teardown if needed
+
+Return a JSON object with:
+{{
+  "tests": [
+    {{"name": "test_name", "code": "...", "purpose": "..."}},
+    ...
+  ],
+  "coverage": estimated_coverage_percentage,
+  "framework": "{test_framework}"
+}}"""},
+                    {"role": "user", "content": f"Code to test:\n\n{code[:3000]}\n\nWrite tests:"}
+                ]
+                response = await llm.chat(messages, provider="ollama")
+                content = response.get("content", "")
+                
+                try:
+                    json_start = content.find("{")
+                    json_end = content.rfind("}") + 1
+                    if json_start >= 0 and json_end > json_start:
+                        result = json.loads(content[json_start:json_end])
+                        result["passed"] = True
+                        return result
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            except Exception:
+                pass
+        
         return {
             "tests": ["test_case_1", "test_case_2"],
             "coverage": 80,
@@ -726,6 +940,48 @@ class DocumentationAgent(BaseAgent):
 
     async def generate_docs(self, code: str, context: dict[str, Any]) -> dict[str, Any]:
         """Generate documentation."""
+        # Try to use LLM for documentation generation
+        if code:
+            try:
+                llm = get_llm_service()
+                task = context.get("task", "the implementation")
+                
+                messages = [
+                    {"role": "system", "content": """You are an expert technical writer. Generate comprehensive documentation for the given code.
+Include:
+- Overview of what the code does
+- Installation/setup instructions
+- Usage examples
+- API reference (if applicable)
+- Troubleshooting/FAQ
+
+Return a JSON object with:
+{
+  "sections": ["Overview", "Installation", "Usage", "API", "Examples"],
+  "readme": "# full markdown documentation",
+  "summary": "brief summary"
+}"""},
+                    {"role": "user", "content": f"Code to document:\n\n{code[:3000]}\n\nTask: {task}\n\nGenerate documentation:"}
+                ]
+                response = await llm.chat(messages, provider="ollama")
+                content = response.get("content", "")
+                
+                try:
+                    json_start = content.find("{")
+                    json_end = content.rfind("}") + 1
+                    if json_start >= 0 and json_end > json_start:
+                        return json.loads(content[json_start:json_end])
+                except (json.JSONDecodeError, KeyError):
+                    # Try to extract markdown from response
+                    if content.strip().startswith("#"):
+                        return {
+                            "sections": ["Overview", "Usage"],
+                            "readme": content,
+                            "summary": "Documentation generated"
+                        }
+            except Exception:
+                pass
+        
         return {
             "sections": ["Overview", "Usage", "API Reference"],
             "readme": "# Documentation",

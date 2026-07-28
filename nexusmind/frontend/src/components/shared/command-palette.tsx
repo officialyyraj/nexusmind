@@ -109,7 +109,7 @@ export function CommandPalette() {
       category: "Sessions",
       action: () => {
         toggleCommandPalette();
-        router.push("/sessions/new");
+        router.push("/sessions");
       },
     },
     // View

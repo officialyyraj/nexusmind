@@ -3,6 +3,54 @@
 import { create } from "zustand";
 import type { WebSocketStatus, WebSocketMessage } from "@/lib/api/websocket";
 
+// Backend execution states from ExecutionState enum
+type BackendExecutionState = 
+  | "queued" 
+  | "starting" 
+  | "planning" 
+  | "researching" 
+  | "coding" 
+  | "reviewing" 
+  | "testing" 
+  | "documenting" 
+  | "completed" 
+  | "failed" 
+  | "cancelled" 
+  | "paused" 
+  | "resuming";
+
+// Frontend execution status (matches WorkflowExecution.status)
+type FrontendExecutionStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+
+// Mapping from backend execution states to frontend execution status
+const EXECUTION_STATE_MAP: Record<BackendExecutionState, FrontendExecutionStatus> = {
+  // Terminal states - direct mapping
+  "completed": "completed",
+  "failed": "failed",
+  "cancelled": "cancelled",
+  
+  // Active/in-progress states - map to running
+  "queued": "pending",
+  "starting": "running",
+  "planning": "running",
+  "researching": "running",
+  "coding": "running",
+  "reviewing": "running",
+  "testing": "running",
+  "documenting": "running",
+  "paused": "running",
+  "resuming": "running",
+};
+
+/**
+ * Maps backend execution state to frontend execution status.
+ * Centralized mapping ensures consistent state representation across the app.
+ */
+export function mapExecutionStateToStatus(state: string): FrontendExecutionStatus {
+  const normalizedState = state.toLowerCase() as BackendExecutionState;
+  return EXECUTION_STATE_MAP[normalizedState] ?? "pending";
+}
+
 export interface RealtimeEvent {
   id: string;
   type: string;
@@ -13,6 +61,7 @@ export interface RealtimeEvent {
 export interface ExecutionUpdate {
   executionId: string;
   state: string;
+  status: FrontendExecutionStatus;
   progress: number;
   currentAgent?: string;
   step?: number;
@@ -183,9 +232,11 @@ export const useRealtimeStore = create<RealtimeState>((set, get) => ({
           const data = message.data as Record<string, unknown>;
           const executionId = (data.execution_id || data.executionId) as string;
           if (executionId) {
+            const rawState = (data.state as string) || "";
             state.updateExecution({
               executionId,
-              state: (data.state as string) || "",
+              state: rawState,
+              status: mapExecutionStateToStatus(rawState),
               progress: (data.progress as number) || 0,
               currentAgent: data.current_agent as string | undefined,
               step: data.step as number | undefined,

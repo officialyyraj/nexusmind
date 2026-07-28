@@ -50,6 +50,12 @@ class User(Base, TimestampMixin):
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     api_keys = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")
     llm_providers = relationship("LlmProvider", back_populates="user", cascade="all, delete-orphan")
+    provider_connections = relationship(
+        "UserProviderConnection",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"

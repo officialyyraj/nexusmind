@@ -11,17 +11,7 @@ from typing import Any, Callable
 from langgraph.graph import END, StateGraph
 
 from app.agents.base import AgentState
-from app.agents.implementations import (
-    CoderAgent,
-    DocumentationAgent,
-    ManagerAgent,
-    PlannerAgent,
-    ResearcherAgent,
-    ReviewerAgent,
-    TaskPlan,
-    TesterAgent,
-    create_agent,
-)
+from app.agents.autonomous import create_autonomous_agent
 from app.agents.types import AgentType
 
 
@@ -125,7 +115,10 @@ class AdvancedWorkflowState(AgentState):
 
 
 def create_phase_node(phase_type: PhaseType, agent_type: AgentType):
-    """Create a node function for a phase."""
+    """Create a node function for a phase using autonomous agents."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
 
     async def node(state: AdvancedWorkflowState) -> AdvancedWorkflowState:
         phase_key = phase_type.value
@@ -145,14 +138,27 @@ def create_phase_node(phase_type: PhaseType, agent_type: AgentType):
             state["progress"]["current_phase"] = phase_type.value
 
         try:
-            agent = create_agent(agent_type, session_id=state.get("session_id"))
-            result_state = await agent.execute(state)
+            # Create autonomous agent with dependencies
+            agent = create_autonomous_agent(
+                agent_type,
+                tool_invoker=get_tool_invoker(),
+                reasoning_loop=get_reasoning_loop(),
+                memory_service=get_memory_service(),
+                session_id=state.get("session_id"),
+            )
+            
+            # Execute using reasoning loop
+            trace = await agent.execute_with_tools(
+                task=state.get("task", ""),
+                session_id=state.get("session_id", ""),
+                context=state.get("context", {}),
+            )
 
             # Extract result
             phase_result = PhaseResult(
                 phase=phase_type,
                 status=TaskStatus.COMPLETED,
-                result=result_state.get("result", {}),
+                result=trace.final_result or {},
                 completed_at=datetime.utcnow(),
             )
             phase_result.duration = (
@@ -165,8 +171,9 @@ def create_phase_node(phase_type: PhaseType, agent_type: AgentType):
             if "progress" in state:
                 state["progress"]["completed_phases"] += 1
 
-            # Merge result state
-            state.update(result_state)
+            # Store trace in agent_states
+            state["agent_states"][phase_key] = {"trace": trace.to_dict()}
+            state["result"] = trace.final_result
 
         except Exception as e:
             # Handle failure
@@ -198,7 +205,10 @@ def create_phase_node(phase_type: PhaseType, agent_type: AgentType):
 
 
 def create_parallel_phase_node(phase_types: list[PhaseType], agent_type: AgentType):
-    """Create a node that executes multiple phases in parallel."""
+    """Create a node that executes multiple phases in parallel using autonomous agents."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
 
     async def node(state: AdvancedWorkflowState) -> AdvancedWorkflowState:
         if "phase_results" not in state:
@@ -218,9 +228,27 @@ def create_parallel_phase_node(phase_types: list[PhaseType], agent_type: AgentTy
             # Set current step context
             state["context"]["current_phase"] = phase_key
 
-            # Create agent task
-            agent = create_agent(agent_type, session_id=state.get("session_id"))
-            tasks.append(_execute_phase(phase_type, agent, state))
+            # Create agent task using autonomous agent
+            async def run_phase():
+                agent = create_autonomous_agent(
+                    agent_type,
+                    tool_invoker=get_tool_invoker(),
+                    reasoning_loop=get_reasoning_loop(),
+                    memory_service=get_memory_service(),
+                    session_id=state.get("session_id"),
+                )
+                trace = await agent.execute_with_tools(
+                    task=state.get("task", ""),
+                    session_id=state.get("session_id", ""),
+                    context=state.get("context", {}),
+                )
+                return PhaseResult(
+                    phase=phase_type,
+                    status=TaskStatus.COMPLETED,
+                    result=trace.final_result or {},
+                    completed_at=datetime.utcnow(),
+                )
+            tasks.append(run_phase())
 
         # Execute all phases in parallel
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -259,32 +287,6 @@ def create_parallel_phase_node(phase_types: list[PhaseType], agent_type: AgentTy
 
     return node
 
-
-async def _execute_phase(
-    phase_type: PhaseType,
-    agent: Any,
-    state: AdvancedWorkflowState,
-) -> PhaseResult:
-    """Execute a single phase with the agent."""
-    try:
-        result_state = await agent.execute(state)
-
-        phase_result = PhaseResult(
-            phase=phase_type,
-            status=TaskStatus.COMPLETED,
-            result=result_state.get("result", {}),
-            completed_at=datetime.utcnow(),
-        )
-
-        return phase_result
-
-    except Exception as e:
-        return PhaseResult(
-            phase=phase_type,
-            status=TaskStatus.FAILED,
-            error=str(e),
-            completed_at=datetime.utcnow(),
-        )
 
 
 def create_advanced_workflow(

@@ -25,7 +25,10 @@ from app.config import get_settings
 from app.agents.base import AgentState
 from app.agents.workflow import AgentWorkflow
 from app.agents.types import AgentType
-from app.agents.implementations import PlannerAgent, ResearcherAgent, CoderAgent, ReviewerAgent, TesterAgent, DocumentationAgent
+from app.agents.autonomous import create_autonomous_agent, AutonomousAgentMixin
+from app.agents.execution_engine import get_tool_invoker
+from app.agents.reasoning_loop import ReasoningLoop, get_reasoning_loop
+from app.agents.registry import get_agent_registry, AgentPriority
 from app.db.session import Session, SessionStatus
 from app.db.message import Message, MessageRole
 from app.db.artifact import AgentLog, Artifact
@@ -33,6 +36,9 @@ from app.db.execution import Execution, ExecutionStep, ExecutionLog, ExecutionSt
 from app.memory.chromadb import get_memory_service, ChromaMemoryService
 from app.streaming.ws_manager import get_connection_manager
 from app.sandbox.docker import get_sandbox, DockerSandbox
+from app.tools import registration as _  # noqa: F401 - registers tools at import
+from app.tools.web_search.service import get_search_service
+from app.tools.mcp_integration import get_mcp_integrator
 
 
 # Retry configuration
@@ -81,6 +87,51 @@ class ExecutionError(Exception):
         self.error_type = error_type
         self.details = details or {}
         self.is_retryable = is_retryable
+
+
+def _register_agents() -> None:
+    """Register all autonomous agents with the Agent Registry at module load."""
+    import asyncio
+
+    async def _do_register():
+        registry = get_agent_registry()
+        
+        # Agent capabilities now include full tool usage
+        agents = [
+            (AgentType.PLANNER, create_autonomous_agent, AgentPriority.HIGH, 
+             ["task_planning", "dependency_analysis", "priority_setting", "web_search", "memory"]),
+            (AgentType.RESEARCHER, create_autonomous_agent, AgentPriority.NORMAL, 
+             ["web_search", "browser", "memory", "code_search", "documentation_search"]),
+            (AgentType.CODER, create_autonomous_agent, AgentPriority.HIGH, 
+             ["file_write", "file_edit", "sandbox", "memory", "code_complete", "refactor"]),
+            (AgentType.REVIEWER, create_autonomous_agent, AgentPriority.NORMAL, 
+             ["code_analysis", "security_scan", "style_check", "memory"]),
+            (AgentType.TESTER, create_autonomous_agent, AgentPriority.NORMAL, 
+             ["test_write", "test_run", "sandbox", "coverage_analysis", "memory"]),
+            (AgentType.DOCUMENTATION, create_autonomous_agent, AgentPriority.LOW, 
+             ["doc_generate", "readme_write", "api_docs", "memory"]),
+        ]
+        for agent_type, factory, priority, capabilities in agents:
+            if not registry.has_agent(agent_type):
+                await registry.register(
+                    agent_type=agent_type,
+                    factory=factory,
+                    priority=priority,
+                    capabilities=capabilities,
+                )
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(_do_register())
+        else:
+            loop.run_until_complete(_do_register())
+    except RuntimeError:
+        pass
+
+
+# Register agents at module import
+_register_agents()
 
 
 class ProductionExecutor:
@@ -276,13 +327,17 @@ class ProductionExecutor:
             agent_timings: dict[str, dict[str, Any]] = {}
             
             # Initialize workflow state for checkpointing
+            # Include user_id from session for BYOK provider routing
+            user_id = str(session.user_id) if session.user_id else None
             workflow_state: AgentState = {
                 "session_id": session_id,
+                "user_id": user_id,
                 "task": task,
                 "context": {
                     "execution_id": execution_id,
                     "prompt": prompt,
                     "run_agents": run_agents,
+                    "user_id": user_id,  # Also in context for BYOK lookup
                 },
                 "messages": [],
                 "artifacts": [],
@@ -335,12 +390,14 @@ class ProductionExecutor:
                 )
                 
                 # Execute agent with retries
+                # Pass user_id for BYOK provider routing
                 step_result = await self._execute_agent_with_retries(
                     agent_type=agent_type,
                     workflow_state=workflow_state,
                     execution=execution,
                     step=step,
                     db=db,
+                    user_id=user_id,
                 )
                 
                 # Record timing
@@ -430,28 +487,59 @@ class ProductionExecutor:
         execution: Execution,
         step: ExecutionStep,
         db: AsyncSession,
+        user_id: str | None = None,
     ) -> dict[str, Any]:
-        """Execute an agent with retry logic."""
+        """Execute an agent with autonomous tool capabilities and retry logic.
+        
+        Args:
+            agent_type: Type of agent to execute
+            workflow_state: Current workflow state
+            execution: Execution record
+            step: Current step record
+            db: Database session
+            user_id: Authenticated user ID for BYOK provider routing
+        """
         attempt = 0
         max_attempts = execution.max_retries + 1
+        session_id = workflow_state.get("session_id", str(execution.session_id))
+        task = workflow_state.get("task", "")
+        context = workflow_state.get("context", {})
         
         while attempt < max_attempts:
             try:
-                # Create agent instance
-                agent = self._create_agent(agent_type)
+                # Create autonomous agent with all dependencies wired
+                # Pass user_id for BYOK provider routing
+                agent = self._create_agent(agent_type, user_id=user_id)
                 
-                # Execute agent
+                # Execute agent using the reasoning loop with tools
                 start_time = datetime.utcnow()
-                result_state = await agent.execute(workflow_state)
+                
+                # Use the autonomous agent's execute_with_tools method
+                # which uses the ReasoningLoop internally
+                trace = await agent.execute_with_tools(
+                    task=task,
+                    session_id=session_id,
+                    context=context,
+                )
+                
                 duration_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                
+                # Update workflow state with trace results
+                result_state = workflow_state.copy()
+                result_state["agent_states"][agent_type] = {
+                    "trace": trace.to_dict(),
+                    "findings": trace.final_result if trace.final_result else [],
+                }
+                result_state["result"] = trace.final_result
                 
                 # Success
                 return {
                     "success": True,
-                    "result": result_state.get("result"),
+                    "result": trace.final_result,
                     "state": result_state,
                     "duration_ms": duration_ms,
                     "attempts": attempt + 1,
+                    "trace": trace.to_dict(),
                 }
                 
             except Exception as e:
@@ -503,23 +591,42 @@ class ProductionExecutor:
             "attempts": max_attempts,
         }
     
-    def _create_agent(self, agent_type: str):
-        """Create an agent instance based on type."""
-        agents = {
-            "planner": PlannerAgent,
-            "researcher": ResearcherAgent,
-            "coder": CoderAgent,
-            "reviewer": ReviewerAgent,
-            "tester": TesterAgent,
-            "documentation": DocumentationAgent,
-        }
+    def _create_agent(self, agent_type: str, user_id: str | None = None):
+        """Create an autonomous agent instance with full tool capabilities.
         
-        agent_class = agents.get(agent_type)
-        if not agent_class:
+        Args:
+            agent_type: Type of agent to create
+            user_id: Authenticated user ID for BYOK provider routing
+        """
+        # Get agent type enum
+        try:
+            agent_enum = AgentType(agent_type.lower())
+        except ValueError:
             raise ValueError(f"Unknown agent type: {agent_type}")
-        
-        return agent_class()
-    
+
+        # Create autonomous agent with all dependencies wired
+        # Pass user_id for BYOK provider routing
+        agent = create_autonomous_agent(
+            agent_enum,
+            tool_invoker=get_tool_invoker(),
+            reasoning_loop=get_reasoning_loop(),
+            memory_service=get_memory_service(),
+            user_id=user_id,
+        )
+
+        # Inject search service for ResearcherAgent
+        if agent_enum == AgentType.RESEARCHER:
+            agent._search_service = get_search_service()
+
+        return agent
+
+    def _create_reasoning_loop(self) -> ReasoningLoop:
+        """Create a reasoning loop with all dependencies wired."""
+        return ReasoningLoop(
+            tool_invoker=get_tool_invoker(),
+            memory_service=get_memory_service(),
+        )
+
     def _classify_error(self, error: Exception) -> str:
         """Classify an error to determine if it's retryable."""
         error_str = str(error).lower()
@@ -589,7 +696,7 @@ class ProductionExecutor:
             {
                 "type": "progress",
                 "execution_id": str(execution.id),
-                "current_step": step_index,
+                "step": step_index,
                 "total_steps": execution.total_steps,
                 "current_agent": agent_type,
                 "progress_percent": int((step_index / max(execution.total_steps, 1)) * 100),

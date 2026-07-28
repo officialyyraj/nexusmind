@@ -11,6 +11,7 @@ import type {
   NodeStatus,
 } from '@/types';
 import { api } from '@/lib/api/client';
+import { useRealtimeStore, mapExecutionStateToStatus } from '@/lib/stores/realtime';
 
 interface WorkflowState {
   // Current workflow
@@ -45,6 +46,7 @@ interface WorkflowState {
   replayWorkflow: () => void;
   exportWorkflow: (format: 'json' | 'png' | 'svg') => void;
   reset: () => void;
+  syncFromRealtime: () => void;
   
   // Async actions
   loadWorkflow: (executionId: string) => Promise<void>;
@@ -228,6 +230,67 @@ export const useWorkflowStore = create<WorkflowState>()(
         error: null,
       }),
       
+      // Sync from realtime store
+      syncFromRealtime: () => {
+        const state = get();
+        const realtime = useRealtimeStore.getState();
+        
+        // Sync execution updates to workflow
+        if (state.currentWorkflow) {
+          const executionId = state.currentWorkflow.id;
+          const update = realtime.executionUpdates.get(executionId);
+          
+          if (update) {
+            // Update workflow status using the pre-mapped status from realtime store
+            set({
+              currentWorkflow: {
+                ...state.currentWorkflow,
+                status: update.status,  // Already mapped by realtime store
+                progress: update.progress,
+                currentNode: update.currentAgent,
+              },
+            });
+            
+            // Update nodes based on current agent
+            if (update.currentAgent) {
+              state.updateNode(update.currentAgent, {
+                status: 'running',
+              });
+            }
+            
+            // Update completed nodes using the step field (now consistent with backend)
+            if (update.step !== undefined) {
+              const nodes = state.currentWorkflow.nodes;
+              for (let i = 0; i < update.step && i < nodes.length; i++) {
+                if (nodes[i].status !== 'completed') {
+                  state.updateNode(nodes[i].id, {
+                    status: 'completed',
+                  });
+                }
+              }
+            }
+          }
+        }
+        
+        // Sync logs from realtime
+        const realtimeLogs = realtime.logs;
+        if (realtimeLogs.length > state.logs.length) {
+          const newLogs = realtimeLogs.slice(state.logs.length);
+          for (const log of newLogs) {
+            if (log.executionId === state.currentWorkflow?.id) {
+              state.addLog({
+                logId: log.id,
+                nodeId: log.agentId || '',
+                nodeName: log.agentType || '',
+                level: log.level as 'debug' | 'info' | 'warn' | 'error',
+                message: log.message,
+                timestamp: log.timestamp,
+              });
+            }
+          }
+        }
+      },
+      
       // Async actions
       loadWorkflow: async (executionId: string) => {
         set({ isLoading: true, error: null });
@@ -274,7 +337,7 @@ export const useWorkflowStore = create<WorkflowState>()(
           const workflow: WorkflowExecution = {
             id: executionId,
             name: execution.task as string || 'Execution Workflow',
-            status: (execution.state as string || 'pending') as WorkflowExecution['status'],
+            status: mapExecutionStateToStatus(execution.state as string),
             startedAt: execution.started_at as string,
             progress: execution.progress_percent as number || 0,
             currentNode: nodes.find(n => n.status === 'running')?.id,

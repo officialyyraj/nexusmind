@@ -37,12 +37,12 @@ export interface Task {
 
 export interface Session {
   id: string;
-  name: string;
-  projectId?: string;
-  status: SessionStatus;
-  createdAt: string;
-  updatedAt: string;
-  messageCount: number;
+  title: string | null;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  agent_states?: Record<string, unknown>;
+  context?: Record<string, unknown>;
 }
 
 export interface Message {
@@ -54,6 +54,22 @@ export interface Message {
   attachments?: Attachment[];
   artifacts?: Artifact[];
   citations?: Citation[];
+}
+
+// Chat-specific message type matching backend API response
+export interface ChatMessage {
+  id: string;
+  session_id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  agent_type?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string | null;
+}
+
+// Helper to convert backend MessageResponse to frontend ChatMessage
+export function toChatMessage(msg: ChatMessage): ChatMessage {
+  return msg;
 }
 
 export interface Attachment {
@@ -75,14 +91,15 @@ export interface Citation {
   text: string;
 }
 
-export interface Project {
-  id: string;
-  name: string;
-  description: string;
-  createdAt: string;
-  updatedAt: string;
-  sessionCount: number;
-}
+// DEFERRED: Projects feature not implemented in Phase 3
+// export interface Project {
+//   id: string;
+//   name: string;
+//   description: string;
+//   createdAt: string;
+//   updatedAt: string;
+//   sessionCount: number;
+// }
 
 export interface TokenUsage {
   promptTokens: number;
@@ -91,14 +108,15 @@ export interface TokenUsage {
   cost: number;
 }
 
-export interface LogEntry {
-  id: string;
-  timestamp: string;
-  level: 'debug' | 'info' | 'warn' | 'error';
-  source: string;
-  message: string;
-  metadata?: Record<string, unknown>;
-}
+// DEFERRED: Logs feature not implemented in Phase 3
+// export interface LogEntry {
+//   id: string;
+//   timestamp: string;
+//   level: 'debug' | 'info' | 'warn' | 'error';
+//   source: string;
+//   message: string;
+//   metadata?: Record<string, unknown>;
+// }
 
 export interface Plugin {
   id: string;
@@ -111,15 +129,16 @@ export interface Plugin {
   permissions: string[];
 }
 
-export interface MemoryItem {
-  id: string;
-  type: 'fact' | 'preference' | 'context' | 'knowledge';
-  content: string;
-  embedding?: number[];
-  createdAt: string;
-  accessedAt: string;
-  accessCount: number;
-}
+// DEFERRED: Memory feature not implemented in Phase 3
+// export interface MemoryItem {
+//   id: string;
+//   type: 'fact' | 'preference' | 'context' | 'knowledge';
+//   content: string;
+//   embedding?: number[];
+//   createdAt: string;
+//   accessedAt: string;
+//   accessCount: number;
+// }
 
 export interface WorkflowNode {
   id: string;
@@ -142,16 +161,17 @@ export interface WorkflowEdge {
   label?: string;
 }
 
-export interface Model {
-  id: string;
-  name: string;
-  provider: 'ollama' | 'openai' | 'anthropic';
-  contextLength: number;
-  capabilities: string[];
-  costPer1kInput: number;
-  costPer1kOutput: number;
-  enabled: boolean;
-}
+// DEFERRED: Routing feature not implemented in Phase 3
+// export interface Model {
+//   id: string;
+//   name: string;
+//   provider: 'ollama' | 'openai' | 'anthropic';
+//   contextLength: number;
+//   capabilities: string[];
+//   costPer1kInput: number;
+//   costPer1kOutput: number;
+//   enabled: boolean;
+// }
 
 export interface Metric {
   name: string;

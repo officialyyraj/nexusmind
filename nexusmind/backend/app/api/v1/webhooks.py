@@ -22,7 +22,7 @@ from app.api.v1.schemas import (
     WebhookRotateSecretResponse,
 )
 
-router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 async def get_webhook_or_404(

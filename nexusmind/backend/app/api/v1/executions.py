@@ -20,7 +20,7 @@ from app.api.v1.schemas import (
 )
 
 
-router = APIRouter(prefix="/api/v1/executions", tags=["executions"])
+router = APIRouter(prefix="/executions", tags=["executions"])
 
 
 async def get_execution_or_404(

@@ -1,5 +1,6 @@
 """Main FastAPI application for NexusMind."""
 
+import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -17,7 +18,9 @@ from app.api.v1.sandbox import router as sandbox_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.executions import router as executions_router
+from app.api.v1.providers import router as providers_router
 from app.auth.routes import router as auth_router
+from app.api.ws import router as ws_router
 from app.tools.browser.api import router as browser_router
 from app.monitoring.routes import router as monitoring_router
 from app.security.middleware import setup_security_middleware
@@ -43,6 +46,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     global _startup_complete
     settings = get_settings()
+    
+    # Run deployment gate validation in production
+    if settings.is_production:
+        from app.security.deployment_gate import run_deployment_gate, StartupError
+        try:
+            report = run_deployment_gate(settings, raise_on_failure=True)
+            logger.info("Deployment gate passed")
+            for check in report.checks:
+                if check.passed:
+                    logger.debug(f"  ✓ {check.name}")
+                else:
+                    logger.warning(f"  ✗ {check.name}: {check.message}")
+        except StartupError as e:
+            logger.critical("Deployment gate FAILED:")
+            for failure in e.report.critical_failures:
+                logger.critical(f"  🔴 CRITICAL - {failure.name}: {failure.message}")
+                if failure.hint:
+                    logger.critical(f"    → {failure.hint}")
+            for failure in e.report.high_failures:
+                logger.critical(f"  🟠 HIGH - {failure.name}: {failure.message}")
+            raise
+    
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Debug mode: {settings.debug}")
@@ -67,7 +92,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.error(f"Unexpected initialization error: {e}")
             raise
 
-    # Initialize MCP servers
+    # Initialize MCP servers and sync tools to registry
     try:
         from app.mcp import get_mcp_manager
 
@@ -87,8 +112,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await manager.initialize()
             logger.info("MCP initialized without servers (no config found)")
 
+        # Sync MCP tools to Tool Registry for agent access
+        try:
+            from app.tools.mcp_integration import get_mcp_integrator
+            integrator = get_mcp_integrator()
+            stats = await integrator.sync_tools()
+            logger.info(f"MCP tools synced: {stats.get('registered', 0)} registered, {stats.get('unregistered', 0)} removed")
+        except Exception as e:
+            logger.warning(f"MCP tool sync failed: {e}")
+
     except Exception as e:
         logger.warning(f"MCP initialization failed: {e}")
+
+    # Initialize tools registry
+    try:
+        from app.tools.registry import get_tool_registry
+        from app.tools import registration as _  # noqa: F401 - registers tools
+        registry = get_tool_registry()
+        tools = registry.list_tools(include_mcp=True)
+        logger.info(f"Tool Registry initialized with {len(tools)} tools")
+    except Exception as e:
+        logger.warning(f"Tool Registry initialization failed: {e}")
 
     yield
 
@@ -186,15 +230,19 @@ def create_app() -> FastAPI:
     api_prefix = settings.api_prefix
     app.include_router(auth_router, prefix=f"{api_prefix}/auth")
     app.include_router(security_router, prefix=f"{api_prefix}/security")
-    app.include_router(sessions_router, prefix=f"{api_prefix}/sessions")
-    app.include_router(agents_router, prefix=f"{api_prefix}/agents")
-    app.include_router(sandbox_router, prefix=f"{api_prefix}/sandbox")
-    app.include_router(memory_router, prefix=f"{api_prefix}/memory")
-    app.include_router(plugins_router, prefix=f"{api_prefix}/plugins")
-    app.include_router(webhooks_router, prefix=f"{api_prefix}/webhooks")
-    app.include_router(mcp_router, prefix=f"{api_prefix}/mcp")
+    app.include_router(sessions_router, prefix=api_prefix)  # Router has /sessions prefix
+    app.include_router(agents_router, prefix=api_prefix)     # Router has /agents prefix
+    app.include_router(sandbox_router, prefix=api_prefix)    # Router has /sandbox prefix
+    app.include_router(memory_router, prefix=api_prefix)     # Router has /memory prefix
+    app.include_router(plugins_router, prefix=api_prefix)    # Router has /plugins prefix
+    app.include_router(webhooks_router, prefix=api_prefix)    # Router has /webhooks prefix
+    app.include_router(mcp_router, prefix=f"{api_prefix}/mcp")  # Router has no internal prefix
     app.include_router(executions_router)
+    app.include_router(providers_router)  # BYOK provider management
     app.include_router(browser_router)
+
+    # Include WebSocket router (no prefix - uses /ws path)
+    app.include_router(ws_router)
 
     # Include monitoring routes (no prefix for /health, /metrics)
     app.include_router(monitoring_router)
@@ -317,7 +365,25 @@ app = create_app()
 
 # Debug: print registered routes
 if __name__ == "__main__":
-    for route in app.routes:
-        if hasattr(route, "path"):
-            methods = getattr(route, "methods", {"WS"})
-            print(f"{methods}: {route.path}")
+    from app.security.deployment_gate import run_deployment_gate, StartupError
+    from app.config import get_settings
+    
+    settings = get_settings()
+    
+    # Run deployment gate validation
+    # In debug mode (__main__), show validation but don't block
+    # In production, it blocks automatically
+    strict_mode = os.environ.get("NEXUSMIND_STRICT_STARTUP", "").lower() in ("true", "1", "yes")
+    
+    try:
+        report = run_deployment_gate(settings, raise_on_failure=strict_mode)
+        print(report.format_report())
+        if not report.all_passed:
+            print("\n⚠️  WARNING: Some checks failed. Application may not work correctly.")
+            if strict_mode:
+                exit(1)
+    except StartupError as e:
+        print(e)
+        if strict_mode or settings.is_production:
+            print("\n❌ STARTUP BLOCKED: Fix validation failures before deployment.")
+            exit(1)

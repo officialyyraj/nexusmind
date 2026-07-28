@@ -17,6 +17,7 @@ from app.api.v1.sandbox import router as sandbox_router
 from app.api.v1.sessions import router as sessions_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.executions import router as executions_router
+from app.api.v1.providers import router as providers_router
 from app.auth.routes import router as auth_router
 from app.api.ws import router as ws_router
 from app.tools.browser.api import router as browser_router
@@ -214,6 +215,7 @@ def create_app() -> FastAPI:
     app.include_router(webhooks_router, prefix=api_prefix)    # Router has /webhooks prefix
     app.include_router(mcp_router, prefix=f"{api_prefix}/mcp")  # Router has no internal prefix
     app.include_router(executions_router)
+    app.include_router(providers_router)  # BYOK provider management
     app.include_router(browser_router)
 
     # Include WebSocket router (no prefix - uses /ws path)

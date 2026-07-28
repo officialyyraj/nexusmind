@@ -11,6 +11,7 @@ class AgentState(TypedDict):
     """State shared between agents in a workflow."""
 
     session_id: str
+    user_id: str | None  # Added for BYOK: user whose providers to use
     task: str
     context: dict[str, Any]
     messages: list[dict[str, Any]]

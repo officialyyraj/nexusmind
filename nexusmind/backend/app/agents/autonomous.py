@@ -44,6 +44,7 @@ class AutonomousAgentMixin:
         memory_service: ChromaMemoryService | None = None,
         max_iterations: int = 20,
         max_tools_per_step: int = 5,
+        user_id: str | None = None,
     ):
         self._tool_invoker = tool_invoker or get_tool_invoker()
         self._reasoning_loop = reasoning_loop or get_reasoning_loop()
@@ -51,12 +52,78 @@ class AutonomousAgentMixin:
         self._llm = None  # Lazy loaded
         self._max_iterations = max_iterations
         self._max_tools_per_step = max_tools_per_step
+        self._user_id = user_id  # Store for BYOK lookup
+        self._byok_executor = None  # Lazy loaded BYOK executor
     
     async def get_llm(self):
-        """Lazy load LLM service."""
+        """Lazy load LLM service with BYOK support.
+        
+        Priority:
+        1. User's BYOK provider (if user_id available)
+        2. System LLM service (fallback)
+        """
         if self._llm is None:
             self._llm = get_llm_service()
         return self._llm
+    
+    async def get_byok_executor(self):
+        """Get BYOK execution service for user's provider.
+        
+        Returns None if no user_id or no BYOK provider configured.
+        """
+        if not self._user_id:
+            return None
+        
+        if self._byok_executor is None:
+            try:
+                from app.llm.byok.executor import BYOKExecutionService
+                from app.db.database import async_session_maker
+                
+                # Create a session to get user's provider
+                async for db in async_session_maker():
+                    self._byok_executor = BYOKExecutionService(db)
+                    break
+            except Exception:
+                return None
+        
+        return self._byok_executor
+    
+    async def chat_with_llm(
+        self,
+        messages: list[dict],
+        provider: str | None = None,
+        model: str | None = None,
+        **kwargs,
+    ):
+        """Chat using LLM with BYOK preference.
+        
+        Tries BYOK first if user has a provider, falls back to system LLM.
+        """
+        import uuid
+        
+        user_id = self._user_id
+        if user_id:
+            user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+            byok_executor = await self.get_byok_executor()
+            
+            if byok_executor:
+                try:
+                    # Try BYOK first
+                    result = await byok_executor.chat(
+                        user_id=user_uuid,
+                        messages=messages,
+                        provider=provider,
+                        model=model,
+                        **kwargs,
+                    )
+                    return result
+                except Exception as e:
+                    # BYOK failed, will fall through to system LLM
+                    pass
+        
+        # Fall back to system LLM
+        llm = await self.get_llm()
+        return await llm.chat(messages, provider=provider, model=model, **kwargs)
     
     async def retrieve_context(
         self,

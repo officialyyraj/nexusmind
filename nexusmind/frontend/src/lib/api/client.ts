@@ -1,5 +1,5 @@
 import { getToken } from '@/lib/auth';
-import type { Agent, Session, Message, Project, Plugin, MemoryItem, LogEntry, Model, 
+import type { Agent, Session, Message, Plugin, 
                  MCPServerConfig, MCPServerInfo, MCPServerHealth, MCPTool, MCPToolInvocationResult, MCPStatus } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -66,43 +66,55 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   agents: {
-    list: () => request<Agent[]>('/agents'),
-    get: (id: string) => request<Agent>(`/agents/${id}`),
-    create: (data: Partial<Agent>) => request<Agent>('/agents', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: Partial<Agent>) => request<Agent>(`/agents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    delete: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
+    // Phase 3: Maps to backend /agents/types endpoint
+    list: () => request<Agent[]>('/agents/types'),
+    // Phase 3: Maps to backend /agents/{agent_type}/capabilities endpoint
+    get: (agentType: string) => request<Agent>(`/agents/${agentType}/capabilities`),
+    // Deferred: Agent CRUD operations not implemented in backend
+    // create: (data: Partial<Agent>) => request<Agent>('/agents', { method: 'POST', body: JSON.stringify(data) }),
+    // update: (id: string, data: Partial<Agent>) => request<Agent>(`/agents/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    // delete: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
   },
   sessions: {
     list: (params?: Record<string, string>) => request<Session[]>(`/sessions?${new URLSearchParams(params)}`),
     get: (id: string) => request<Session>(`/sessions/${id}`),
-    create: (data: { title?: string }) => request<Session>('/sessions', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { title?: string }) => request<Session>('/sessions/', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: { title?: string; status?: string }) => request<Session>(`/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => request<void>(`/sessions/${id}`, { method: 'DELETE' }),
     messages: (id: string, params?: Record<string, string>) => request<Message[]>(`/sessions/${id}/messages?${new URLSearchParams(params)}`),
-    send: (id: string, content: string) => request<Message>(`/sessions/${id}/messages`, { method: 'POST', body: JSON.stringify({ content }) }),
+    send: (id: string, content: string, role: 'user' | 'assistant' | 'system' | 'tool' = 'user') => 
+      request<Message>(`/sessions/${id}/messages`, { 
+        method: 'POST', 
+        body: JSON.stringify({ role, content }) 
+      }),
   },
-  projects: {
-    list: () => request<Project[]>('/projects'),
-    get: (id: string) => request<Project>(`/projects/${id}`),
-    create: (data: Partial<Project>) => request<Project>('/projects', { method: 'POST', body: JSON.stringify(data) }),
-  },
+  // DEFERRED: Projects feature not implemented in Phase 3
+  // projects: {
+  //   list: () => request<Project[]>('/projects'),
+  //   get: (id: string) => request<Project>(`/projects/${id}`),
+  //   create: (data: Partial<Project>) => request<Project>('/projects', { method: 'POST', body: JSON.stringify(data) }),
+  // },
   plugins: {
-    list: () => request<Plugin[]>('/plugins'),
-    get: (id: string) => request<Plugin>(`/plugins/${id}`),
-    enable: (id: string) => request<void>(`/plugins/${id}/enable`, { method: 'POST' }),
-    disable: (id: string) => request<void>(`/plugins/${id}/disable`, { method: 'POST' }),
+    // Phase 3: Added trailing slash for correct routing
+    list: () => request<Plugin[]>('/plugins/'),
+    get: (pluginId: string) => request<Plugin>(`/plugins/${pluginId}`),
+    enable: (pluginId: string) => request<void>(`/plugins/${pluginId}/enable`, { method: 'POST' }),
+    disable: (pluginId: string) => request<void>(`/plugins/${pluginId}/disable`, { method: 'POST' }),
   },
-  memory: {
-    search: (query: string) => request<MemoryItem[]>('/memory/search?q=' + encodeURIComponent(query)),
-    get: (id: string) => request<MemoryItem>(`/memory/${id}`),
-  },
-  logs: {
-    list: (params?: Record<string, string>) => request<LogEntry[]>('/logs?' + new URLSearchParams(params)),
-  },
-  routing: {
-    models: () => request<Model[]>('/routing/models'),
-    route: (taskType: string) => request<{ model: Model }>('/routing/route', { method: 'POST', body: JSON.stringify({ taskType }) }),
-  },
+  // DEFERRED: Memory feature not implemented in Phase 3
+  // memory: {
+  //   search: (query: string) => request<MemoryItem[]>('/memory/search?q=' + encodeURIComponent(query)),
+  //   get: (id: string) => request<MemoryItem>(`/memory/${id}`),
+  // },
+  // DEFERRED: Logs feature not implemented in Phase 3
+  // logs: {
+  //   list: (params?: Record<string, string>) => request<LogEntry[]>('/logs?' + new URLSearchParams(params)),
+  // },
+  // DEFERRED: Routing feature not implemented in Phase 3
+  // routing: {
+  //   models: () => request<Model[]>('/routing/models'),
+  //   route: (taskType: string) => request<{ model: Model }>('/routing/route', { method: 'POST', body: JSON.stringify({ taskType }) }),
+  // },
   mcp: {
     // Server management
     listServers: () => request<MCPServerInfo[]>('/mcp/servers'),
@@ -163,27 +175,32 @@ export const api = {
     retry: (id: string) => request<unknown>(`/executions/${id}/retry`, { method: 'POST' }),
   },
   sandbox: {
-    list: () => request<unknown[]>('/sandbox'),
+    // Phase 3: Added trailing slash
+    list: () => request<unknown[]>('/sandbox/'),
     allocate: (data: { image?: string; workspace?: string }) => 
       request<unknown>('/sandbox/allocate', { method: 'POST', body: JSON.stringify(data) }),
-    getStatus: (id: string) => request<{ id: string; status: string }>(`/sandbox/${id}/status`),
+    getStatus: (sandboxId: string) => request<{ id: string; status: string }>(`/sandbox/${sandboxId}/status`),
+    // Phase 3: Fixed missing /sandbox prefix
     listFiles: (sandboxId: string, path = '/workspace') => 
       request<{ files: { name: string; path: string; type: string; size?: number }[] }>(
-        `/${sandboxId}/files?path=${encodeURIComponent(path)}`
+        `/sandbox/${sandboxId}/files?path=${encodeURIComponent(path)}`
       ),
+    // Phase 3: Fixed missing /sandbox prefix
     readFile: (sandboxId: string, path: string) => 
-      request<{ sandboxId: string; path: string; content: string }>(`/${sandboxId}/files/${encodeURIComponent(path)}`),
+      request<{ sandboxId: string; path: string; content: string }>(`/sandbox/${sandboxId}/files/${encodeURIComponent(path)}`),
+    // Phase 3: Fixed missing /sandbox prefix
     writeFile: (sandboxId: string, path: string, content: string) => 
       request<{ sandboxId: string; path: string; written: boolean }>(
-        `/${sandboxId}/files`, 
+        `/sandbox/${sandboxId}/files`, 
         { method: 'POST', body: JSON.stringify({ path, content }) }
       ),
+    // Phase 3: Fixed missing /sandbox prefix
     execute: (sandboxId: string, command: string, timeout = 300) => 
-      request<unknown>(`/${sandboxId}/execute`, { 
+      request<unknown>(`/sandbox/${sandboxId}/execute`, { 
         method: 'POST', 
         body: JSON.stringify({ command, timeout }) 
       }),
-    release: (id: string) => request<unknown>(`/sandbox/${id}`, { method: 'DELETE' }),
+    release: (sandboxId: string) => request<unknown>(`/sandbox/${sandboxId}`, { method: 'DELETE' }),
   },
   monitoring: {
     health: () => request<{ status: string; service: string; version: string }>('/health'),

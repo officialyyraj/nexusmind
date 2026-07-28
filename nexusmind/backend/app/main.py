@@ -18,6 +18,7 @@ from app.api.v1.sessions import router as sessions_router
 from app.api.v1.webhooks import router as webhooks_router
 from app.api.v1.executions import router as executions_router
 from app.auth.routes import router as auth_router
+from app.api.ws import router as ws_router
 from app.tools.browser.api import router as browser_router
 from app.monitoring.routes import router as monitoring_router
 from app.security.middleware import setup_security_middleware
@@ -186,15 +187,18 @@ def create_app() -> FastAPI:
     api_prefix = settings.api_prefix
     app.include_router(auth_router, prefix=f"{api_prefix}/auth")
     app.include_router(security_router, prefix=f"{api_prefix}/security")
-    app.include_router(sessions_router, prefix=f"{api_prefix}/sessions")
-    app.include_router(agents_router, prefix=f"{api_prefix}/agents")
-    app.include_router(sandbox_router, prefix=f"{api_prefix}/sandbox")
-    app.include_router(memory_router, prefix=f"{api_prefix}/memory")
-    app.include_router(plugins_router, prefix=f"{api_prefix}/plugins")
-    app.include_router(webhooks_router, prefix=f"{api_prefix}/webhooks")
-    app.include_router(mcp_router, prefix=f"{api_prefix}/mcp")
+    app.include_router(sessions_router, prefix=api_prefix)  # Router has /sessions prefix
+    app.include_router(agents_router, prefix=api_prefix)     # Router has /agents prefix
+    app.include_router(sandbox_router, prefix=api_prefix)    # Router has /sandbox prefix
+    app.include_router(memory_router, prefix=api_prefix)     # Router has /memory prefix
+    app.include_router(plugins_router, prefix=api_prefix)    # Router has /plugins prefix
+    app.include_router(webhooks_router, prefix=api_prefix)    # Router has /webhooks prefix
+    app.include_router(mcp_router, prefix=f"{api_prefix}/mcp")  # Router has no internal prefix
     app.include_router(executions_router)
     app.include_router(browser_router)
+
+    # Include WebSocket router (no prefix - uses /ws path)
+    app.include_router(ws_router)
 
     # Include monitoring routes (no prefix for /health, /metrics)
     app.include_router(monitoring_router)

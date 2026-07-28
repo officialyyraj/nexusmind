@@ -1,27 +1,79 @@
 "use client";
+
 import { AppShell } from "@/components/layout/app-shell";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Bot, User, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Loader2, ArrowLeft, RefreshCw } from "lucide-react";
+import { useCallback, useMemo } from "react";
 import { useSession } from "@/lib/api/hooks";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ChatContainer } from "@/components/chat";
+import { useMessages } from "@/lib/api/hooks/chat/useMessages";
+import { useSendMessage } from "@/lib/api/hooks/chat/useSendMessage";
+import type { ChatMessage } from "@/types";
 
 export default function SessionWorkspacePage() {
   const params = useParams();
   const sessionId = params.id as string;
-  const { data: session, isLoading, error } = useSession(sessionId);
-  const [messages, setMessages] = useState<Array<{ role: string; content: string; agentType?: string }>>([]);
-  const [input, setInput] = useState("");
+  
+  // Session query
+  const { 
+    data: session, 
+    isLoading: isSessionLoading, 
+    error: sessionError,
+    refetch: refetchSession 
+  } = useSession(sessionId);
+  
+  // Messages query
+  const {
+    messages,
+    isLoading: isMessagesLoading,
+    isFetching: isMessagesFetching,
+    error: messagesError,
+    isEmpty: isMessagesEmpty,
+    refetch: refetchMessages
+  } = useMessages({ sessionId });
+  
+  // Send message mutation
+  const {
+    sendMessage,
+    isPending: isSending,
+    isError: isSendError,
+    error: sendError
+  } = useSendMessage({ 
+    sessionId,
+    onError: (error) => {
+      console.error('Failed to send message:', error);
+    }
+  });
+  
+  // Combined loading state
+  const isLoading = isSessionLoading || isMessagesLoading;
+  
+  // Combined error state
+  const error = sessionError || messagesError || (isSendError ? sendError : null);
+  
+  // Handle send message
+  const handleSendMessage = useCallback((content: string) => {
+    sendMessage(content);
+  }, [sendMessage]);
+  
+  // Handle refresh
+  const handleRefresh = useCallback(() => {
+    refetchMessages();
+    refetchSession();
+  }, [refetchMessages, refetchSession]);
+  
+  // Format messages for the container
+  const formattedMessages = useMemo<ChatMessage[]>(() => {
+    return messages as ChatMessage[];
+  }, [messages]);
 
   return (
     <AppShell>
       <div className="h-full flex flex-col">
-        <div className="border-b p-4 flex items-center justify-between">
+        {/* Header */}
+        <div className="border-b p-4 flex items-center justify-between bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center gap-4">
             <Link href="/sessions">
               <Button variant="ghost" size="icon">
@@ -29,48 +81,49 @@ export default function SessionWorkspacePage() {
               </Button>
             </Link>
             <div>
-              {isLoading ? (
+              {isSessionLoading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span className="text-sm text-muted-foreground">Loading...</span>
                 </div>
-              ) : error ? (
+              ) : sessionError ? (
                 <h1 className="font-semibold text-destructive">Session not found</h1>
               ) : (
                 <h1 className="font-semibold">{session?.title || 'Untitled Session'}</h1>
               )}
             </div>
           </div>
-          {session && (
-            <span className="text-sm text-muted-foreground">
-              Status: {session.status}
-            </span>
-          )}
-        </div>
-        <ScrollArea className="flex-1 p-4">
-          <div className="space-y-4">
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user" ? "bg-primary" : "bg-muted"}`}>
-                  {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                </div>
-                <Card className="max-w-[70%]">
-                  <CardContent className="p-3 text-sm">{msg.content}</CardContent>
-                </Card>
-              </div>
-            ))}
-            {messages.length === 0 && !isLoading && (
-              <div className="text-center py-12 text-muted-foreground">
-                Start a conversation with your AI agents
-              </div>
+          <div className="flex items-center gap-2">
+            {session && (
+              <span className="text-sm text-muted-foreground">
+                Status: {session.status}
+              </span>
             )}
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${isMessagesFetching ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
-        </ScrollArea>
-        <div className="border-t p-4">
-          <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (input) { setMessages([...messages, { role: "user", content: input }]); setInput(""); } }}>
-            <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type your message..." className="flex-1" disabled={isLoading || !!error} />
-            <Button type="submit" size="icon" disabled={isLoading || !!error || !input.trim()}><Send className="h-4 w-4" /></Button>
-          </form>
+        </div>
+        
+        {/* Chat container */}
+        <div className="flex-1 overflow-hidden relative">
+          <ChatContainer
+            sessionId={sessionId}
+            messages={formattedMessages}
+            isLoading={isLoading}
+            isFetching={isMessagesFetching}
+            isError={!!error}
+            error={error as Error | null}
+            isEmpty={isMessagesEmpty}
+            isSending={isSending}
+            onSendMessage={handleSendMessage}
+            onRefresh={handleRefresh}
+          />
         </div>
       </div>
     </AppShell>

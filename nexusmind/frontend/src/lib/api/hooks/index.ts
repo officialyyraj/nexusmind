@@ -53,18 +53,21 @@ export function useDeleteSession() {
   });
 }
 
-export function useProjects() { 
-  return useQuery({ queryKey: ['projects'], queryFn: api.projects.list }); 
-}
+// DEFERRED: Projects feature not implemented in Phase 3
+// export function useProjects() { 
+//   return useQuery({ queryKey: ['projects'], queryFn: api.projects.list }); 
+// }
 
 export function usePlugins() { 
   return useQuery({ queryKey: ['plugins'], queryFn: api.plugins.list }); 
 }
 
-export function useLogs(params?: Record<string, string>) { 
-  return useQuery({ queryKey: ['logs', params], queryFn: () => api.logs.list(params) }); 
-}
+// DEFERRED: Logs feature not implemented in Phase 3
+// export function useLogs(params?: Record<string, string>) { 
+//   return useQuery({ queryKey: ['logs', params], queryFn: () => api.logs.list(params) }); 
+// }
 
-export function useModels() { 
-  return useQuery({ queryKey: ['models'], queryFn: api.routing.models }); 
-}
+// DEFERRED: Routing feature not implemented in Phase 3
+// export function useModels() { 
+//   return useQuery({ queryKey: ['models'], queryFn: api.routing.models }); 
+// }

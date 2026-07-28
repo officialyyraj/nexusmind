@@ -1,5 +1,6 @@
 """Main FastAPI application for NexusMind."""
 
+import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -45,6 +46,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     global _startup_complete
     settings = get_settings()
+    
+    # Run deployment gate validation in production
+    if settings.is_production:
+        from app.security.deployment_gate import run_deployment_gate, StartupError
+        try:
+            report = run_deployment_gate(settings, raise_on_failure=True)
+            logger.info("Deployment gate passed")
+            for check in report.checks:
+                if check.passed:
+                    logger.debug(f"  ✓ {check.name}")
+                else:
+                    logger.warning(f"  ✗ {check.name}: {check.message}")
+        except StartupError as e:
+            logger.critical("Deployment gate FAILED:")
+            for failure in e.report.critical_failures:
+                logger.critical(f"  🔴 CRITICAL - {failure.name}: {failure.message}")
+                if failure.hint:
+                    logger.critical(f"    → {failure.hint}")
+            for failure in e.report.high_failures:
+                logger.critical(f"  🟠 HIGH - {failure.name}: {failure.message}")
+            raise
+    
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Debug mode: {settings.debug}")
@@ -342,7 +365,25 @@ app = create_app()
 
 # Debug: print registered routes
 if __name__ == "__main__":
-    for route in app.routes:
-        if hasattr(route, "path"):
-            methods = getattr(route, "methods", {"WS"})
-            print(f"{methods}: {route.path}")
+    from app.security.deployment_gate import run_deployment_gate, StartupError
+    from app.config import get_settings
+    
+    settings = get_settings()
+    
+    # Run deployment gate validation
+    # In debug mode (__main__), show validation but don't block
+    # In production, it blocks automatically
+    strict_mode = os.environ.get("NEXUSMIND_STRICT_STARTUP", "").lower() in ("true", "1", "yes")
+    
+    try:
+        report = run_deployment_gate(settings, raise_on_failure=strict_mode)
+        print(report.format_report())
+        if not report.all_passed:
+            print("\n⚠️  WARNING: Some checks failed. Application may not work correctly.")
+            if strict_mode:
+                exit(1)
+    except StartupError as e:
+        print(e)
+        if strict_mode or settings.is_production:
+            print("\n❌ STARTUP BLOCKED: Fix validation failures before deployment.")
+            exit(1)

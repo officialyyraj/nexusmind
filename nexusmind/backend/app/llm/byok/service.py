@@ -138,7 +138,7 @@ class ProviderService:
             default_model=default_model,
             enabled=enabled,
             is_default=is_first,
-            metadata=metadata or {},
+            config_metadata=metadata or {},  # Renamed from metadata to avoid SQLAlchemy conflict
             verification_status=VerificationStatus.PENDING.value,
         )
         

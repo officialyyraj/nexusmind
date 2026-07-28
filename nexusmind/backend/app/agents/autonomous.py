@@ -7,6 +7,7 @@ autonomous tool-based execution, integrating with:
 - MCP for external tools
 - Sandbox for code execution
 - Browser for web interactions
+- BYOK provider routing for authenticated users
 """
 
 import asyncio
@@ -32,6 +33,117 @@ from app.agents.reasoning_loop import (
 )
 from app.memory.chromadb import ChromaMemoryService, get_memory_service
 from app.llm.service import get_llm_service
+
+
+class UserScopedLLMService:
+    """User-scoped LLM service that routes through BYOK if configured.
+    
+    This class wraps BYOK execution and provides a consistent interface
+    for the ReasoningLoop's ToolSelector.
+    
+    Execution path:
+    1. If user_id present and BYOK provider configured -> use BYOK
+    2. Otherwise -> fall back to system LLM service
+    """
+    
+    def __init__(self, user_id: str | None, db_session_factory=None):
+        """Initialize user-scoped LLM service.
+        
+        Args:
+            user_id: Authenticated user's ID for BYOK lookup
+            db_session_factory: Async session factory for BYOK executor
+        """
+        self._user_id = user_id
+        self._db_session_factory = db_session_factory
+        self._byok_executor = None
+        self._system_llm = None
+    
+    async def _get_byok_executor(self):
+        """Get or create BYOK executor."""
+        if self._byok_executor is not None:
+            return self._byok_executor
+        
+        if not self._user_id or not self._db_session_factory:
+            return None
+        
+        try:
+            from app.llm.byok.executor import BYOKExecutionService
+            async for db in self._db_session_factory():
+                self._byok_executor = BYOKExecutionService(db)
+                return self._byok_executor
+        except Exception:
+            return None
+        
+        return None
+    
+    async def _get_system_llm(self):
+        """Get system LLM service."""
+        if self._system_llm is None:
+            self._system_llm = get_llm_service()
+        return self._system_llm
+    
+    async def chat(self, messages: list[dict], provider: str | None = None, **kwargs):
+        """Send chat request through user's provider if available.
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            provider: Optional provider override
+            **kwargs: Additional parameters
+            
+        Returns:
+            LLMResponse with 'content' key
+        """
+        if self._user_id:
+            byok = await self._get_byok_executor()
+            if byok:
+                try:
+                    user_uuid = uuid.UUID(self._user_id) if isinstance(self._user_id, str) else self._user_id
+                    result = await byok.chat(
+                        user_id=user_uuid,
+                        messages=messages,
+                        provider=provider,
+                        **kwargs,
+                    )
+                    return {"content": result.content, "model": result.model}
+                except Exception:
+                    # Fall through to system LLM on BYOK failure
+                    pass
+        
+        # Fall back to system LLM
+        system = await self._get_system_llm()
+        return await system.chat(messages, provider=provider, **kwargs)
+    
+    async def stream(self, messages: list[dict], provider: str | None = None, **kwargs):
+        """Stream chat request through user's provider if available.
+        
+        Args:
+            messages: List of message dicts with 'role' and 'content'
+            provider: Optional provider override
+            **kwargs: Additional parameters
+            
+        Yields:
+            String chunks of the response
+        """
+        if self._user_id:
+            byok = await self._get_byok_executor()
+            if byok:
+                try:
+                    user_uuid = uuid.UUID(self._user_id) if isinstance(self._user_id, str) else self._user_id
+                    async for chunk in byok.stream(
+                        user_id=user_uuid,
+                        messages=messages,
+                        provider=provider,
+                        **kwargs,
+                    ):
+                        yield chunk
+                    return
+                except Exception:
+                    pass
+        
+        # Fall back to system LLM
+        system = await self._get_system_llm()
+        async for chunk in system.stream(messages, provider=provider, **kwargs):
+            yield chunk
 
 
 class AutonomousAgentMixin:
@@ -168,14 +280,27 @@ class AutonomousAgentMixin:
         session_id: str,
         context: dict[str, Any] | None = None,
     ) -> ReasoningTrace:
-        """Execute task using the reasoning loop with tools."""
+        """Execute task using the reasoning loop with tools.
+        
+        This method wires the BYOK-aware LLM service into the reasoning loop
+        for user-scoped LLM calls.
+        """
         agent_type = getattr(self, "agent_type", AgentType.RESEARCHER)
         
+        # Create user-scoped LLM service for BYOK routing
+        from app.db.database import async_session_maker
+        llm_service = UserScopedLLMService(
+            user_id=self._user_id,
+            db_session_factory=async_session_maker,
+        )
+        
+        # Execute with BYOK-aware reasoning loop
         trace = await self._reasoning_loop.execute(
             task=task,
             agent_type=agent_type,
             session_id=session_id,
             context=context,
+            llm_service=llm_service,
         )
         
         # Store trace in memory

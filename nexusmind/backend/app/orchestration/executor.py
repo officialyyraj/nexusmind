@@ -327,13 +327,17 @@ class ProductionExecutor:
             agent_timings: dict[str, dict[str, Any]] = {}
             
             # Initialize workflow state for checkpointing
+            # Include user_id from session for BYOK provider routing
+            user_id = str(session.user_id) if session.user_id else None
             workflow_state: AgentState = {
                 "session_id": session_id,
+                "user_id": user_id,
                 "task": task,
                 "context": {
                     "execution_id": execution_id,
                     "prompt": prompt,
                     "run_agents": run_agents,
+                    "user_id": user_id,  # Also in context for BYOK lookup
                 },
                 "messages": [],
                 "artifacts": [],
@@ -386,12 +390,14 @@ class ProductionExecutor:
                 )
                 
                 # Execute agent with retries
+                # Pass user_id for BYOK provider routing
                 step_result = await self._execute_agent_with_retries(
                     agent_type=agent_type,
                     workflow_state=workflow_state,
                     execution=execution,
                     step=step,
                     db=db,
+                    user_id=user_id,
                 )
                 
                 # Record timing
@@ -481,8 +487,18 @@ class ProductionExecutor:
         execution: Execution,
         step: ExecutionStep,
         db: AsyncSession,
+        user_id: str | None = None,
     ) -> dict[str, Any]:
-        """Execute an agent with autonomous tool capabilities and retry logic."""
+        """Execute an agent with autonomous tool capabilities and retry logic.
+        
+        Args:
+            agent_type: Type of agent to execute
+            workflow_state: Current workflow state
+            execution: Execution record
+            step: Current step record
+            db: Database session
+            user_id: Authenticated user ID for BYOK provider routing
+        """
         attempt = 0
         max_attempts = execution.max_retries + 1
         session_id = workflow_state.get("session_id", str(execution.session_id))
@@ -492,7 +508,8 @@ class ProductionExecutor:
         while attempt < max_attempts:
             try:
                 # Create autonomous agent with all dependencies wired
-                agent = self._create_agent(agent_type)
+                # Pass user_id for BYOK provider routing
+                agent = self._create_agent(agent_type, user_id=user_id)
                 
                 # Execute agent using the reasoning loop with tools
                 start_time = datetime.utcnow()
@@ -574,8 +591,13 @@ class ProductionExecutor:
             "attempts": max_attempts,
         }
     
-    def _create_agent(self, agent_type: str):
-        """Create an autonomous agent instance with full tool capabilities."""
+    def _create_agent(self, agent_type: str, user_id: str | None = None):
+        """Create an autonomous agent instance with full tool capabilities.
+        
+        Args:
+            agent_type: Type of agent to create
+            user_id: Authenticated user ID for BYOK provider routing
+        """
         # Get agent type enum
         try:
             agent_enum = AgentType(agent_type.lower())
@@ -583,11 +605,13 @@ class ProductionExecutor:
             raise ValueError(f"Unknown agent type: {agent_type}")
 
         # Create autonomous agent with all dependencies wired
+        # Pass user_id for BYOK provider routing
         agent = create_autonomous_agent(
             agent_enum,
             tool_invoker=get_tool_invoker(),
             reasoning_loop=get_reasoning_loop(),
             memory_service=get_memory_service(),
+            user_id=user_id,
         )
 
         # Inject search service for ResearcherAgent

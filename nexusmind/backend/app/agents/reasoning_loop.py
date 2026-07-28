@@ -284,6 +284,8 @@ class ReasoningLoop:
     4. Observe - Collect results
     5. Reason - Determine if more tools needed
     6. Continue or Finalize
+    
+    Supports user-scoped LLM via BYOK when llm_service is provided.
     """
     
     def __init__(
@@ -293,13 +295,15 @@ class ReasoningLoop:
         tool_timeout: float = 30.0,
         tool_invoker: AgentToolInvoker | None = None,
         memory_service: ChromaMemoryService | None = None,
+        llm_service: Any | None = None,
     ):
         self.max_iterations = max_iterations
         self.max_tools_per_step = max_tools_per_step
         self.tool_timeout = tool_timeout
         self._invoker = tool_invoker or get_tool_invoker()
         self._memory = memory_service or get_memory_service()
-        self._tool_selector = ToolSelector(self._invoker)
+        self._llm_service = llm_service  # User-scoped BYOK-aware LLM service
+        self._tool_selector = ToolSelector(self._invoker, llm_service=llm_service)
     
     async def execute(
         self,
@@ -308,6 +312,7 @@ class ReasoningLoop:
         session_id: str,
         context: dict[str, Any] | None = None,
         execution_id: str | None = None,
+        llm_service: Any | None = None,
     ) -> ReasoningTrace:
         """Execute the reasoning loop for a task.
         
@@ -317,10 +322,17 @@ class ReasoningLoop:
             session_id: Session ID for memory context
             context: Additional context for execution
             execution_id: Optional execution ID for tracing
+            llm_service: Optional user-scoped LLM service for BYOK routing
             
         Returns:
             ReasoningTrace with complete execution trace
         """
+        # Use provided llm_service or fall back to instance-level service
+        effective_llm_service = llm_service or self._llm_service
+        if effective_llm_service:
+            # Update tool selector with effective LLM service
+            self._tool_selector._llm_service = effective_llm_service
+        
         execution_id = execution_id or str(uuid.uuid4())
         trace = ReasoningTrace(
             trace_id=execution_id,

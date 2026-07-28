@@ -213,7 +213,7 @@ async def create_provider(
             base_url=data.base_url,
             default_model=data.default_model,
             enabled=data.enabled,
-            metadata=data.metadata,
+            metadata=data.metadata,  # API parameter name stays the same
             request_context=request_context,
         )
         

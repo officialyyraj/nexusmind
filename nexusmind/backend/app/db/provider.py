@@ -75,7 +75,8 @@ class UserProviderConnection(Base, TimestampMixin):
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     
     # Additional configuration (JSON for provider-specific settings)
-    metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # Renamed from 'metadata' to avoid SQLAlchemy reserved attribute conflict
+    config_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     
     # Verification status
     last_verified: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

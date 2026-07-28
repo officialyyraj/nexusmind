@@ -75,7 +75,9 @@ export const api = {
   sessions: {
     list: (params?: Record<string, string>) => request<Session[]>(`/sessions?${new URLSearchParams(params)}`),
     get: (id: string) => request<Session>(`/sessions/${id}`),
-    create: (data: Partial<Session>) => request<Session>('/sessions', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { title?: string }) => request<Session>('/sessions', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { title?: string; status?: string }) => request<Session>(`/sessions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) => request<void>(`/sessions/${id}`, { method: 'DELETE' }),
     messages: (id: string, params?: Record<string, string>) => request<Message[]>(`/sessions/${id}/messages?${new URLSearchParams(params)}`),
     send: (id: string, content: string) => request<Message>(`/sessions/${id}/messages`, { method: 'POST', body: JSON.stringify({ content }) }),
   },

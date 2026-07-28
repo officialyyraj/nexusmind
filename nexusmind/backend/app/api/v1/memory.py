@@ -19,7 +19,7 @@ from app.api.v1.schemas import (
     MemoryClearResponse,
 )
 
-router = APIRouter(prefix="/api/v1/memory", tags=["memory"])
+router = APIRouter(prefix="/memory", tags=["memory"])
 
 
 async def verify_session_ownership(

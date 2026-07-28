@@ -18,7 +18,7 @@ from app.api.v1.schemas import (
     FileWriteResponse,
 )
 
-router = APIRouter(prefix="/api/v1/sandbox", tags=["sandbox"])
+router = APIRouter(prefix="/sandbox", tags=["sandbox"])
 
 
 @router.post("/allocate", response_model=SandboxResponse)

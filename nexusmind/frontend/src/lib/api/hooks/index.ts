@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../client';
 
 export function useAgents() { 
@@ -19,6 +19,38 @@ export function useSession(id: string) {
 
 export function useSessionMessages(sessionId: string) { 
   return useQuery({ queryKey: ['sessions', sessionId, 'messages'], queryFn: () => api.sessions.messages(sessionId), enabled: !!sessionId }); 
+}
+
+export function useCreateSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { title?: string }) => api.sessions.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    },
+  });
+}
+
+export function useUpdateSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { title?: string; status?: string } }) =>
+      api.sessions.update(id, data),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['sessions', id] });
+    },
+  });
+}
+
+export function useDeleteSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.sessions.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    },
+  });
 }
 
 export function useProjects() { 

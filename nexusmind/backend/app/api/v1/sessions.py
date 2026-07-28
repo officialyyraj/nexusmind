@@ -21,7 +21,7 @@ from app.api.v1.schemas import (
     AgentStatesResponse,
 )
 
-router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
+router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 
 async def get_session_or_404(

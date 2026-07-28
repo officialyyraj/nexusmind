@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.agents.types import AgentType, AGENT_CAPABILITIES, get_all_agent_types
 from app.api.v1.schemas import AgentTypeInfo, AgentCapabilitiesResponse
 
-router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
+router = APIRouter(prefix="/agents", tags=["agents"])
 
 
 @router.get("/types", response_model=list[AgentTypeInfo])

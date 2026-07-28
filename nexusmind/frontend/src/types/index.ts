@@ -37,12 +37,12 @@ export interface Task {
 
 export interface Session {
   id: string;
-  name: string;
-  projectId?: string;
-  status: SessionStatus;
-  createdAt: string;
-  updatedAt: string;
-  messageCount: number;
+  title: string | null;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+  agent_states?: Record<string, unknown>;
+  context?: Record<string, unknown>;
 }
 
 export interface Message {

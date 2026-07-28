@@ -30,7 +30,7 @@ from app.api.v1.schemas import (
     PluginUpdateRequest,
 )
 
-router = APIRouter(prefix="/api/v1/plugins", tags=["plugins"])
+router = APIRouter(prefix="/plugins", tags=["plugins"])
 
 
 def get_manager() -> PluginManager:

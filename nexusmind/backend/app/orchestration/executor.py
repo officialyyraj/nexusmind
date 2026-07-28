@@ -25,7 +25,9 @@ from app.config import get_settings
 from app.agents.base import AgentState
 from app.agents.workflow import AgentWorkflow
 from app.agents.types import AgentType
-from app.agents.implementations import PlannerAgent, ResearcherAgent, CoderAgent, ReviewerAgent, TesterAgent, DocumentationAgent
+from app.agents.autonomous import create_autonomous_agent, AutonomousAgentMixin
+from app.agents.execution_engine import get_tool_invoker
+from app.agents.reasoning_loop import ReasoningLoop, get_reasoning_loop
 from app.agents.registry import get_agent_registry, AgentPriority
 from app.db.session import Session, SessionStatus
 from app.db.message import Message, MessageRole
@@ -35,6 +37,8 @@ from app.memory.chromadb import get_memory_service, ChromaMemoryService
 from app.streaming.ws_manager import get_connection_manager
 from app.sandbox.docker import get_sandbox, DockerSandbox
 from app.tools import registration as _  # noqa: F401 - registers tools at import
+from app.tools.web_search.service import get_search_service
+from app.tools.mcp_integration import get_mcp_integrator
 
 
 # Retry configuration
@@ -86,18 +90,26 @@ class ExecutionError(Exception):
 
 
 def _register_agents() -> None:
-    """Register all production agents with the Agent Registry at module load."""
+    """Register all autonomous agents with the Agent Registry at module load."""
     import asyncio
 
     async def _do_register():
         registry = get_agent_registry()
+        
+        # Agent capabilities now include full tool usage
         agents = [
-            (AgentType.PLANNER, PlannerAgent, AgentPriority.HIGH, ["task_planning", "dependency_analysis", "priority_setting"]),
-            (AgentType.RESEARCHER, ResearcherAgent, AgentPriority.NORMAL, ["web_search", "file_read", "code_search", "documentation_search"]),
-            (AgentType.CODER, CoderAgent, AgentPriority.HIGH, ["file_write", "file_edit", "code_complete", "refactor"]),
-            (AgentType.REVIEWER, ReviewerAgent, AgentPriority.NORMAL, ["code_analysis", "security_scan", "style_check"]),
-            (AgentType.TESTER, TesterAgent, AgentPriority.NORMAL, ["test_write", "test_run", "coverage_analysis"]),
-            (AgentType.DOCUMENTATION, DocumentationAgent, AgentPriority.LOW, ["doc_generate", "readme_write", "api_docs"]),
+            (AgentType.PLANNER, create_autonomous_agent, AgentPriority.HIGH, 
+             ["task_planning", "dependency_analysis", "priority_setting", "web_search", "memory"]),
+            (AgentType.RESEARCHER, create_autonomous_agent, AgentPriority.NORMAL, 
+             ["web_search", "browser", "memory", "code_search", "documentation_search"]),
+            (AgentType.CODER, create_autonomous_agent, AgentPriority.HIGH, 
+             ["file_write", "file_edit", "sandbox", "memory", "code_complete", "refactor"]),
+            (AgentType.REVIEWER, create_autonomous_agent, AgentPriority.NORMAL, 
+             ["code_analysis", "security_scan", "style_check", "memory"]),
+            (AgentType.TESTER, create_autonomous_agent, AgentPriority.NORMAL, 
+             ["test_write", "test_run", "sandbox", "coverage_analysis", "memory"]),
+            (AgentType.DOCUMENTATION, create_autonomous_agent, AgentPriority.LOW, 
+             ["doc_generate", "readme_write", "api_docs", "memory"]),
         ]
         for agent_type, factory, priority, capabilities in agents:
             if not registry.has_agent(agent_type):
@@ -470,27 +482,47 @@ class ProductionExecutor:
         step: ExecutionStep,
         db: AsyncSession,
     ) -> dict[str, Any]:
-        """Execute an agent with retry logic."""
+        """Execute an agent with autonomous tool capabilities and retry logic."""
         attempt = 0
         max_attempts = execution.max_retries + 1
+        session_id = workflow_state.get("session_id", str(execution.session_id))
+        task = workflow_state.get("task", "")
+        context = workflow_state.get("context", {})
         
         while attempt < max_attempts:
             try:
-                # Create agent instance
+                # Create autonomous agent with all dependencies wired
                 agent = self._create_agent(agent_type)
                 
-                # Execute agent
+                # Execute agent using the reasoning loop with tools
                 start_time = datetime.utcnow()
-                result_state = await agent.execute(workflow_state)
+                
+                # Use the autonomous agent's execute_with_tools method
+                # which uses the ReasoningLoop internally
+                trace = await agent.execute_with_tools(
+                    task=task,
+                    session_id=session_id,
+                    context=context,
+                )
+                
                 duration_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+                
+                # Update workflow state with trace results
+                result_state = workflow_state.copy()
+                result_state["agent_states"][agent_type] = {
+                    "trace": trace.to_dict(),
+                    "findings": trace.final_result if trace.final_result else [],
+                }
+                result_state["result"] = trace.final_result
                 
                 # Success
                 return {
                     "success": True,
-                    "result": result_state.get("result"),
+                    "result": trace.final_result,
                     "state": result_state,
                     "duration_ms": duration_ms,
                     "attempts": attempt + 1,
+                    "trace": trace.to_dict(),
                 }
                 
             except Exception as e:
@@ -543,39 +575,34 @@ class ProductionExecutor:
         }
     
     def _create_agent(self, agent_type: str):
-        """Create an agent instance based on type using the Agent Registry."""
-        # Try registry first
-        registry = get_agent_registry()
+        """Create an autonomous agent instance with full tool capabilities."""
+        # Get agent type enum
         try:
             agent_enum = AgentType(agent_type.lower())
-            factory = registry.get(agent_enum)
-            if factory:
-                return factory()
-        except (ValueError, AttributeError):
-            pass
-
-        # Fallback: try string key lookup in registry
-        for agent_enum in AgentType:
-            if agent_enum.value == agent_type.lower():
-                factory = registry.get(agent_enum)
-                if factory:
-                    return factory()
-
-        # Last resort: direct import (for backward compatibility)
-        agents = {
-            "planner": PlannerAgent,
-            "researcher": ResearcherAgent,
-            "coder": CoderAgent,
-            "reviewer": ReviewerAgent,
-            "tester": TesterAgent,
-            "documentation": DocumentationAgent,
-        }
-
-        agent_class = agents.get(agent_type)
-        if not agent_class:
+        except ValueError:
             raise ValueError(f"Unknown agent type: {agent_type}")
 
-        return agent_class()
+        # Create autonomous agent with all dependencies wired
+        agent = create_autonomous_agent(
+            agent_enum,
+            tool_invoker=get_tool_invoker(),
+            reasoning_loop=get_reasoning_loop(),
+            memory_service=get_memory_service(),
+        )
+
+        # Inject search service for ResearcherAgent
+        if agent_enum == AgentType.RESEARCHER:
+            agent._search_service = get_search_service()
+
+        return agent
+
+    def _create_reasoning_loop(self) -> ReasoningLoop:
+        """Create a reasoning loop with all dependencies wired."""
+        return ReasoningLoop(
+            tool_invoker=get_tool_invoker(),
+            memory_service=get_memory_service(),
+        )
+
     def _classify_error(self, error: Exception) -> str:
         """Classify an error to determine if it's retryable."""
         error_str = str(error).lower()

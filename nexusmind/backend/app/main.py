@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.error(f"Unexpected initialization error: {e}")
             raise
 
-    # Initialize MCP servers
+    # Initialize MCP servers and sync tools to registry
     try:
         from app.mcp import get_mcp_manager
 
@@ -88,8 +88,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await manager.initialize()
             logger.info("MCP initialized without servers (no config found)")
 
+        # Sync MCP tools to Tool Registry for agent access
+        try:
+            from app.tools.mcp_integration import get_mcp_integrator
+            integrator = get_mcp_integrator()
+            stats = await integrator.sync_tools()
+            logger.info(f"MCP tools synced: {stats.get('registered', 0)} registered, {stats.get('unregistered', 0)} removed")
+        except Exception as e:
+            logger.warning(f"MCP tool sync failed: {e}")
+
     except Exception as e:
         logger.warning(f"MCP initialization failed: {e}")
+
+    # Initialize tools registry
+    try:
+        from app.tools.registry import get_tool_registry
+        from app.tools import registration as _  # noqa: F401 - registers tools
+        registry = get_tool_registry()
+        tools = registry.list_tools(include_mcp=True)
+        logger.info(f"Tool Registry initialized with {len(tools)} tools")
+    except Exception as e:
+        logger.warning(f"Tool Registry initialization failed: {e}")
 
     yield
 

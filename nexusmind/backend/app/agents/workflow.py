@@ -6,16 +6,15 @@ from typing import Any
 from langgraph.graph import END, StateGraph
 
 from app.agents.base import AgentState
-from app.agents.implementations import (
-    CoderAgent,
-    DocumentationAgent,
-    ManagerAgent,
-    PlannerAgent,
-    ResearcherAgent,
-    ReviewerAgent,
-    TaskPlan,
-    TesterAgent,
-    create_agent,
+from app.agents.autonomous import (
+    ToolUsingCoderAgent,
+    ToolUsingDocumentationAgent,
+    ToolUsingManagerAgent,
+    ToolUsingPlannerAgent,
+    ToolUsingResearcherAgent,
+    ToolUsingReviewerAgent,
+    ToolUsingTesterAgent,
+    create_autonomous_agent,
 )
 from app.agents.types import AgentType
 
@@ -41,51 +40,90 @@ def create_planner_researcher_coder_workflow() -> StateGraph:
 
 
 async def planner_node(state: AgentState) -> AgentState:
-    """Execute planner agent - decomposes task into structured JSON plan."""
-    planner = PlannerAgent(session_id=state.get("session_id"))
-    result_state = await planner.execute(state)
+    """Execute planner agent - decomposes task into structured JSON plan using autonomous agent."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
+    
+    planner = ToolUsingPlannerAgent(
+        tool_invoker=get_tool_invoker(),
+        reasoning_loop=get_reasoning_loop(),
+        memory_service=get_memory_service(),
+    )
+    
+    trace = await planner.execute_with_tools(
+        task=state.get("task", ""),
+        session_id=state.get("session_id", ""),
+        context=state.get("context", {}),
+    )
 
     # Extract the JSON plan for the next agents
-    plan_data = result_state.get("result", {}).get("plan", {})
-    result_state["context"]["current_plan"] = plan_data
-    result_state["context"]["plan_json"] = result_state.get("result", {}).get("plan_json", "{}")
-    result_state["current_agent"] = "planner"
+    plan_data = trace.final_result.get("plan", {}) if trace.final_result else {}
+    state["context"]["current_plan"] = plan_data
+    state["context"]["plan_json"] = json.dumps(plan_data, indent=2)
+    state["current_agent"] = "planner"
+    state["agent_states"]["planner"] = {"trace": trace.to_dict()}
 
-    return result_state
+    return state
 
 
 async def researcher_node(state: AgentState) -> AgentState:
-    """Execute researcher agent - gathers information based on plan."""
-    researcher = ResearcherAgent(session_id=state.get("session_id"))
+    """Execute researcher agent - gathers information based on plan using autonomous agent."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
+    from app.tools.web_search.service import get_search_service
+    
+    researcher = ToolUsingResearcherAgent(
+        tool_invoker=get_tool_invoker(),
+        reasoning_loop=get_reasoning_loop(),
+        memory_service=get_memory_service(),
+    )
+    researcher._search_service = get_search_service()
 
     # Get the current step from plan if available
     plan_data = state.get("context", {}).get("current_plan", {})
     if plan_data:
         steps = plan_data.get("steps", [])
-        # Get steps assigned to researcher
         research_steps = [s for s in steps if s.get("agent_type") == "researcher"]
         if research_steps:
             state["context"]["current_step"] = research_steps[0]
 
-    result_state = await researcher.execute(state)
-    result_state["current_agent"] = "researcher"
+    trace = await researcher.execute_with_tools(
+        task=state.get("task", ""),
+        session_id=state.get("session_id", ""),
+        context=state.get("context", {}),
+    )
 
-    # Store research findings in context for coder
-    findings = result_state.get("agent_states", {}).get("researcher", {}).get("findings", [])
-    result_state["context"]["research_findings"] = findings
+    state["current_agent"] = "researcher"
+    
+    # Extract findings from trace
+    findings = []
+    if trace.final_result and isinstance(trace.final_result, dict):
+        findings = trace.final_result.get("findings", [])
+    
+    state["agent_states"]["researcher"] = {"trace": trace.to_dict(), "findings": findings}
+    state["context"]["research_findings"] = findings
 
-    return result_state
+    return state
 
 
 async def coder_node(state: AgentState) -> AgentState:
-    """Execute coder agent - implements based on plan and research."""
-    coder = CoderAgent(session_id=state.get("session_id"))
+    """Execute coder agent - implements based on plan and research using autonomous agent."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
+    
+    coder = ToolUsingCoderAgent(
+        tool_invoker=get_tool_invoker(),
+        reasoning_loop=get_reasoning_loop(),
+        memory_service=get_memory_service(),
+    )
 
     # Get the current step from plan if available
     plan_data = state.get("context", {}).get("current_plan", {})
     if plan_data:
         steps = plan_data.get("steps", [])
-        # Get steps assigned to coder
         coding_steps = [s for s in steps if s.get("agent_type") == "coder"]
         if coding_steps:
             state["context"]["current_step"] = coding_steps[0]
@@ -95,42 +133,108 @@ async def coder_node(state: AgentState) -> AgentState:
     if research_findings:
         state["context"]["research_context"] = research_findings
 
-    result_state = await coder.execute(state)
-    result_state["current_agent"] = "coder"
+    trace = await coder.execute_with_tools(
+        task=state.get("task", ""),
+        session_id=state.get("session_id", ""),
+        context=state.get("context", {}),
+    )
 
-    return result_state
+    state["current_agent"] = "coder"
+    state["agent_states"]["coder"] = {"trace": trace.to_dict()}
+
+    return state
 
 
 async def reviewer_node(state: AgentState) -> AgentState:
-    """Execute reviewer agent."""
-    reviewer = ReviewerAgent(session_id=state.get("session_id"))
-    result_state = await reviewer.execute(state)
-    result_state["current_agent"] = "reviewer"
-    return result_state
+    """Execute reviewer agent using autonomous agent."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
+    
+    reviewer = ToolUsingReviewerAgent(
+        tool_invoker=get_tool_invoker(),
+        reasoning_loop=get_reasoning_loop(),
+        memory_service=get_memory_service(),
+    )
+    
+    trace = await reviewer.execute_with_tools(
+        task=state.get("task", ""),
+        session_id=state.get("session_id", ""),
+        context=state.get("context", {}),
+    )
+    
+    state["current_agent"] = "reviewer"
+    state["agent_states"]["reviewer"] = {"trace": trace.to_dict()}
+    return state
 
 
 async def tester_node(state: AgentState) -> AgentState:
-    """Execute tester agent."""
-    tester = TesterAgent(session_id=state.get("session_id"))
-    result_state = await tester.execute(state)
-    result_state["current_agent"] = "tester"
-    return result_state
+    """Execute tester agent using autonomous agent."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
+    
+    tester = ToolUsingTesterAgent(
+        tool_invoker=get_tool_invoker(),
+        reasoning_loop=get_reasoning_loop(),
+        memory_service=get_memory_service(),
+    )
+    
+    trace = await tester.execute_with_tools(
+        task=state.get("task", ""),
+        session_id=state.get("session_id", ""),
+        context=state.get("context", {}),
+    )
+    
+    state["current_agent"] = "tester"
+    state["agent_states"]["tester"] = {"trace": trace.to_dict()}
+    return state
 
 
 async def documentation_node(state: AgentState) -> AgentState:
-    """Execute documentation agent."""
-    docs = DocumentationAgent(session_id=state.get("session_id"))
-    result_state = await docs.execute(state)
-    result_state["current_agent"] = "documentation"
-    return result_state
+    """Execute documentation agent using autonomous agent."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
+    
+    docs = ToolUsingDocumentationAgent(
+        tool_invoker=get_tool_invoker(),
+        reasoning_loop=get_reasoning_loop(),
+        memory_service=get_memory_service(),
+    )
+    
+    trace = await docs.execute_with_tools(
+        task=state.get("task", ""),
+        session_id=state.get("session_id", ""),
+        context=state.get("context", {}),
+    )
+    
+    state["current_agent"] = "documentation"
+    state["agent_states"]["documentation"] = {"trace": trace.to_dict()}
+    return state
 
 
 async def manager_node(state: AgentState) -> AgentState:
-    """Execute manager agent."""
-    manager = ManagerAgent(session_id=state.get("session_id"))
-    result_state = await manager.execute(state)
-    result_state["current_agent"] = "manager"
-    return result_state
+    """Execute manager agent using autonomous agent."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
+    
+    manager = ToolUsingManagerAgent(
+        tool_invoker=get_tool_invoker(),
+        reasoning_loop=get_reasoning_loop(),
+        memory_service=get_memory_service(),
+    )
+    
+    trace = await manager.execute_with_tools(
+        task=state.get("task", ""),
+        session_id=state.get("session_id", ""),
+        context=state.get("context", {}),
+    )
+    
+    state["current_agent"] = "manager"
+    state["agent_states"]["manager"] = {"trace": trace.to_dict()}
+    return state
 
 
 def create_full_workflow() -> StateGraph:
@@ -183,9 +287,27 @@ def create_parallel_workflow(agent_types: list[AgentType]) -> StateGraph:
 
 def create_agent_node(agent_type: AgentType):
     """Create a node function for an agent type."""
+    from app.agents.execution_engine import get_tool_invoker
+    from app.agents.reasoning_loop import get_reasoning_loop
+    from app.memory.chromadb import get_memory_service
+    
     async def node(state: AgentState) -> AgentState:
-        agent = create_agent(agent_type, session_id=state.get("session_id"))
-        return await agent.execute(state)
+        agent = create_autonomous_agent(
+            agent_type,
+            tool_invoker=get_tool_invoker(),
+            reasoning_loop=get_reasoning_loop(),
+            memory_service=get_memory_service(),
+            session_id=state.get("session_id"),
+        )
+        
+        trace = await agent.execute_with_tools(
+            task=state.get("task", ""),
+            session_id=state.get("session_id", ""),
+            context=state.get("context", {}),
+        )
+        
+        state["agent_states"][agent_type.value] = {"trace": trace.to_dict()}
+        return state
 
     return node
 
@@ -242,8 +364,17 @@ class AgentWorkflow:
 
     def get_plan_json(self, task: str, context: dict[str, Any] | None = None) -> str:
         """Get the JSON plan for a task without executing."""
-        planner = PlannerAgent()
+        from app.agents.execution_engine import get_tool_invoker
+        from app.agents.reasoning_loop import get_reasoning_loop
+        from app.memory.chromadb import get_memory_service
         import asyncio
+        
+        planner = ToolUsingPlannerAgent(
+            tool_invoker=get_tool_invoker(),
+            reasoning_loop=get_reasoning_loop(),
+            memory_service=get_memory_service(),
+        )
+        
         state: AgentState = {
             "session_id": "preview",
             "task": task,
@@ -255,5 +386,13 @@ class AgentWorkflow:
             "result": None,
             "error": None,
         }
-        result = asyncio.run(planner.execute(state))
-        return result.get("result", {}).get("plan_json", "{}")
+        
+        async def get_plan():
+            trace = await planner.execute_with_tools(
+                task=task,
+                session_id="preview",
+                context=context or {},
+            )
+            return trace.final_result.get("plan_json", "{}") if trace.final_result else "{}"
+        
+        return asyncio.run(get_plan())

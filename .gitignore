@@ -1,22 +1,6 @@
-# Next.js
-**/.next/
-
-# Python
-__pycache__/
-*.pyc
-AUDIT_REPORT.md
-# Env files
-.env
-.env.*
-!.env.example
-
-# Coverage
-.coverage
-htmlcov/
-
-# Node
-node_modules/
-
-# IDE
-.vscode/
+# IDEs
 .idea/
+.vscode/
+
+# Runtime Data
+backend/data/

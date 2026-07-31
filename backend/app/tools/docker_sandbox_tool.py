@@ -20,7 +20,7 @@ from enum import Enum
 from typing import Any
 
 from app.tools.registry import BaseTool, ToolHealth
-from app.sandbox.docker import DockerSandbox, get_sandbox, ExecutionResult
+from app.sandbox.docker import DockerSandbox, ExecutionResult
 
 
 class SandboxStatus(str, Enum):
@@ -84,7 +84,7 @@ class DockerSandboxTool(BaseTool):
     
     def __init__(
         self,
-        sandbox: DockerSandbox | None = None,
+        sandbox: DockerSandbox,
         default_timeout: float = 30.0,
         max_sessions: int = 10,
     ):
@@ -92,7 +92,7 @@ class DockerSandboxTool(BaseTool):
             name="docker_sandbox",
             description="Execute code in an isolated Docker container with security hardening",
         )
-        self._sandbox = sandbox or get_sandbox()
+        self._sandbox = sandbox
         self._default_timeout = default_timeout
         self._max_sessions = max_sessions
         self._sessions: dict[str, SandboxSession] = {}
@@ -436,15 +436,3 @@ class DockerSandboxTool(BaseTool):
             self.get_session_info(sid)
             for sid in self._sessions
         ]
-
-
-# Global instance
-_docker_sandbox_tool: DockerSandboxTool | None = None
-
-
-def get_docker_sandbox_tool() -> DockerSandboxTool:
-    """Get the global Docker sandbox tool instance."""
-    global _docker_sandbox_tool
-    if _docker_sandbox_tool is None:
-        _docker_sandbox_tool = DockerSandboxTool()
-    return _docker_sandbox_tool

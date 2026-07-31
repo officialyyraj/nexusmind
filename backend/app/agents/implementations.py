@@ -7,6 +7,7 @@ from typing import Any
 from app.agents.base import AgentState, BaseAgent
 from app.agents.types import AgentType
 from app.llm.service import get_llm_service
+from app.agents.config import get_agent_config
 
 
 class TaskStep:
@@ -81,6 +82,7 @@ class PlannerAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         super().__init__(AgentType.PLANNER, **kwargs)
+        self.config = get_agent_config('planner')
 
     async def execute(self, state: AgentState) -> AgentState:
         """Execute planning task and create JSON plan."""
@@ -100,41 +102,13 @@ class PlannerAgent(BaseAgent):
         return state
 
     async def plan(self, task: str, context: dict[str, Any]) -> TaskPlan:
-        """Create a structured task plan as JSON.
-        
-        Returns a TaskPlan with detailed steps including:
-        - step_id: Unique identifier
-        - title: Short step title
-        - description: Detailed description
-        - agent_type: Which agent should execute
-        - dependencies: List of step_ids this depends on
-        - estimated_duration: Time estimate
-        - priority: Execution priority
-        """
+        """Create a structured task plan as JSON."""
         # Try to use LLM for intelligent planning
         try:
             llm = get_llm_service()
             messages = [
-                {"role": "system", "content": """You are a task planning assistant. Given a task, break it down into structured steps.
-For each step, provide:
-- step_id: A unique identifier (e.g., "step_1", "step_2")
-- title: A short descriptive title
-- description: What this step involves
-- agent_type: Which agent should handle this (planner, researcher, coder, reviewer, tester, documentation)
-- dependencies: List of step_ids this depends on (empty list if none)
-- estimated_duration: Estimated time (e.g., "5-10 min")
-- priority: Priority 1-10, higher is more important
-
-Return ONLY valid JSON in this format:
-{
-  "steps": [
-    {"step_id": "step_1", "title": "...", "description": "...", "agent_type": "...", "dependencies": [], "estimated_duration": "...", "priority": 10},
-    ...
-  ]
-}
-If the task is simple, 2-3 steps is fine. For complex tasks, up to 6 steps.
-"""},
-                {"role": "user", "content": f"Task: {task}\n\nGenerate a structured plan:"}
+                {"role": "system", "content": self.config.get('system_prompt')},
+                {"role": "user", "content": self.config.get('user_prompt_template').format(task=task)}
             ]
             response = await llm.chat(messages, provider="ollama")
             content = response.get("content", "")
@@ -368,6 +342,8 @@ class ResearcherAgent(BaseAgent):
     def __init__(self, search_service=None, **kwargs):
         super().__init__(AgentType.RESEARCHER, **kwargs)
         self._search_service = search_service
+        self.config = get_agent_config('researcher')
+
 
     async def execute(self, state: AgentState) -> AgentState:
         """Execute research task."""
@@ -406,22 +382,8 @@ class ResearcherAgent(BaseAgent):
         try:
             llm = get_llm_service()
             messages = [
-                {"role": "system", "content": """You are an expert researcher. Provide detailed information about the given topic.
-Structure your response as a list of key findings with:
-- Key points and facts
-- Important details
-- Best practices or recommendations
-- Common pitfalls to avoid
-
-Return a JSON object with findings array:
-{
-  "findings": [
-    {"topic": "main topic", "finding": "detailed finding", "source": "knowledge", "confidence": 0.9},
-    ...
-  ]
-}
-Aim for 3-5 substantive findings."""},
-                {"role": "user", "content": f"Research topic: {task}\n\nProvide your findings:"}
+                {"role": "system", "content": self.config.get('system_prompt')},
+                {"role": "user", "content": self.config.get('user_prompt_template').format(task=task)}
             ]
             response = await llm.chat(messages, provider="ollama")
             content = response.get("content", "")
@@ -536,6 +498,7 @@ class CoderAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         super().__init__(AgentType.CODER, **kwargs)
+        self.config = get_agent_config('coder')
 
     async def execute(self, state: AgentState) -> AgentState:
         """Execute coding task."""
@@ -578,17 +541,14 @@ class CoderAgent(BaseAgent):
                     f"- {f.get('finding', '')}" 
                     for f in research_findings[:3]
                 ])
-                context_text = f"\n\nResearch findings:\n{findings_text}"
+                context_text = f"""
+
+Research findings:
+{findings_text}"""
             
             messages = [
-                {"role": "system", "content": f"""You are an expert {language} programmer. Write clean, well-documented code that implements the given task.
-Include:
-- Proper imports
-- Type hints (if {language} supports them)
-- Error handling
-- Docstrings for functions/classes
-- Follow best practices for {language}"""},
-                {"role": "user", "content": f"Task: {task}{context_text}\n\nWrite the implementation:"}
+                {"role": "system", "content": self.config.get('system_prompt').format(language=language)},
+                {"role": "user", "content": self.config.get('user_prompt_template').format(task=task, context_text=context_text)}
             ]
             
             response = await llm.chat(messages, provider="ollama")
@@ -616,7 +576,6 @@ Include:
             "language": language,
             "lines_of_code": len(code.split("\n")),
         }
-
     def _generate_code(self, task: str, language: str, context: dict[str, Any]) -> str:
         """Generate code implementation."""
         if language == "python":
@@ -758,6 +717,8 @@ class ReviewerAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         super().__init__(AgentType.REVIEWER, **kwargs)
+        self.config = get_agent_config('reviewer')
+
 
     async def execute(self, state: AgentState) -> AgentState:
         """Execute code review."""
@@ -790,22 +751,8 @@ class ReviewerAgent(BaseAgent):
             try:
                 llm = get_llm_service()
                 messages = [
-                    {"role": "system", "content": """You are an expert code reviewer. Review the code and provide feedback on:
-1. Bugs and potential issues
-2. Security vulnerabilities
-3. Code quality and style
-4. Performance concerns
-5. Suggestions for improvement
-
-Return a JSON object with:
-{
-  "issues": [{"severity": "high|medium|low", "type": "...", "description": "...", "line": null, "suggestion": "..."}],
-  "score": 1-10,
-  "summary": "Overall assessment",
-  "suggestions": ["suggestion1", "suggestion2"]
-}
-If code is good, score should be high (8-10) with few/no issues."""},
-                    {"role": "user", "content": f"Code to review:\n\n{code[:3000]}\n\nReview this code:"}
+                    {"role": "system", "content": self.config.get('system_prompt')},
+                    {"role": "user", "content": self.config.get('user_prompt_template').format(code=code[:3000])}
                 ]
                 response = await llm.chat(messages, provider="ollama")
                 content = response.get("content", "")
@@ -833,6 +780,7 @@ class TesterAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         super().__init__(AgentType.TESTER, **kwargs)
+        self.config = get_agent_config('tester')
 
     async def execute(self, state: AgentState) -> AgentState:
         """Execute testing task."""
@@ -868,24 +816,8 @@ class TesterAgent(BaseAgent):
                 test_framework = "pytest" if language == "python" else "jest"
                 
                 messages = [
-                    {"role": "system", "content": f"""You are an expert test engineer. Write comprehensive unit tests for the given code using {test_framework}.
-Include:
-- Test cases for happy path
-- Edge cases and error conditions
-- Proper assertions
-- Descriptive test names
-- Setup/teardown if needed
-
-Return a JSON object with:
-{{
-  "tests": [
-    {{"name": "test_name", "code": "...", "purpose": "..."}},
-    ...
-  ],
-  "coverage": estimated_coverage_percentage,
-  "framework": "{test_framework}"
-}}"""},
-                    {"role": "user", "content": f"Code to test:\n\n{code[:3000]}\n\nWrite tests:"}
+                    {"role": "system", "content": self.config.get('system_prompt').format(test_framework=test_framework)},
+                    {"role": "user", "content": self.config.get('user_prompt_template').format(code=code[:3000])}
                 ]
                 response = await llm.chat(messages, provider="ollama")
                 content = response.get("content", "")
@@ -914,6 +846,7 @@ class DocumentationAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         super().__init__(AgentType.DOCUMENTATION, **kwargs)
+        self.config = get_agent_config('documentation')
 
     async def execute(self, state: AgentState) -> AgentState:
         """Execute documentation task."""
@@ -947,21 +880,8 @@ class DocumentationAgent(BaseAgent):
                 task = context.get("task", "the implementation")
                 
                 messages = [
-                    {"role": "system", "content": """You are an expert technical writer. Generate comprehensive documentation for the given code.
-Include:
-- Overview of what the code does
-- Installation/setup instructions
-- Usage examples
-- API reference (if applicable)
-- Troubleshooting/FAQ
-
-Return a JSON object with:
-{
-  "sections": ["Overview", "Installation", "Usage", "API", "Examples"],
-  "readme": "# full markdown documentation",
-  "summary": "brief summary"
-}"""},
-                    {"role": "user", "content": f"Code to document:\n\n{code[:3000]}\n\nTask: {task}\n\nGenerate documentation:"}
+                    {"role": "system", "content": self.config.get('system_prompt')},
+                    {"role": "user", "content": self.config.get('user_prompt_template').format(code=code[:3000], task=task)}
                 ]
                 response = await llm.chat(messages, provider="ollama")
                 content = response.get("content", "")

@@ -1,12 +1,11 @@
 """Tool registration for production tools.
 
-This module registers all production tools with the Tool Registry
-at module import time.
+This module registers all production tools with the Tool Registry.
 """
-
+from functools import partial
 from app.tools.registry import get_tool_registry, BaseTool, ToolHealth
 from app.tools.browser.tool import BrowserTool
-from app.tools.sandbox import SandboxTool
+from app.tools.docker_sandbox_tool import DockerSandboxTool
 
 
 class BrowserToolWrapper(BaseTool):
@@ -68,52 +67,7 @@ class BrowserToolWrapper(BaseTool):
         await self._browser.stop()
 
 
-class SandboxToolWrapper(BaseTool):
-    """Wrapper for SandboxTool to conform to BaseTool interface."""
-
-    def __init__(self):
-        super().__init__(
-            name="sandbox",
-            description="Sandbox tool for secure code execution",
-        )
-        self._sandbox = SandboxTool()
-        self._health = ToolHealth.HEALTHY
-
-    async def health(self) -> ToolHealth:
-        """Check sandbox tool health."""
-        try:
-            return self._health
-        except Exception:
-            return ToolHealth.UNHEALTHY
-
-    async def can_execute(self, **kwargs) -> bool:
-        """Check if sandbox can execute."""
-        return self._health == ToolHealth.HEALTHY
-
-    async def execute(self, action: str, **kwargs) -> dict:
-        """Execute sandbox action."""
-        if action == "allocate":
-            result = await self._sandbox.allocate_sandbox(**kwargs)
-            return {"success": True, **result}
-        elif action == "release":
-            result = await self._sandbox.release_sandbox(kwargs.get("sandbox_id", ""))
-            return {"success": True, **result}
-        elif action == "execute":
-            result = await self._sandbox.execute(
-                code=kwargs.get("code", ""),
-                language=kwargs.get("language", "python"),
-                timeout=kwargs.get("timeout", 30),
-            )
-            return {"success": True, **result}
-        else:
-            return {"success": False, "error": f"Unknown action: {action}"}
-
-    async def shutdown(self) -> None:
-        """Shutdown sandbox tool."""
-        pass
-
-
-def register_tools() -> None:
+def register_tools(docker_sandbox_tool: DockerSandboxTool) -> None:
     """Register all production tools with the Tool Registry."""
     registry = get_tool_registry()
 
@@ -122,15 +76,14 @@ def register_tools() -> None:
         browser_tool = BrowserToolWrapper()
         registry.register(browser_tool)
 
-    if not registry.has_tool("sandbox"):
-        sandbox_tool = SandboxToolWrapper()
-        registry.register(sandbox_tool)
+    if not registry.has_tool("docker_sandbox"):
+        registry.register(docker_sandbox_tool)
 
     # Register function-based tools
     if not registry.get_function("execute_code"):
         registry.register_function(
             "execute_code",
-            _execute_code,
+            partial(_execute_code, docker_sandbox_tool),
             "Execute code in a sandboxed environment",
         )
 
@@ -142,10 +95,10 @@ def register_tools() -> None:
         )
 
 
-async def _execute_code(code: str, language: str = "python", timeout: int = 30) -> dict:
+async def _execute_code(docker_sandbox_tool: DockerSandboxTool, code: str, language: str = "python", timeout: int = 30) -> dict:
     """Execute code function wrapper."""
-    sandbox = SandboxTool()
-    result = await sandbox.execute(
+    result = await docker_sandbox_tool.execute(
+        action="execute",
         code=code,
         language=language,
         timeout=timeout,
@@ -167,6 +120,3 @@ async def _web_search(query: str, provider: str = "duckduckgo") -> dict:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-
-# Register tools at module import
-register_tools()

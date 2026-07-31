@@ -28,7 +28,7 @@ import docker
 from docker.models.containers import Container
 from docker.types import HostConfig, Mount
 
-from app.config import get_settings
+from app.config import Settings
 
 
 # Default timeout: 5 minutes (300 seconds)
@@ -295,8 +295,8 @@ class DockerSandbox:
     - Proper cleanup on release
     """
 
-    def __init__(self):
-        self.settings = get_settings()
+    def __init__(self, settings: "Settings"):
+        self.settings = settings
         self.client = docker.from_env()
         self._sandboxes: dict[str, Sandbox] = {}
         self._timeout = DEFAULT_TIMEOUT
@@ -1161,14 +1161,3 @@ class DockerSandbox:
     def list_sandboxes(self) -> list[Sandbox]:
         """List all allocated sandboxes."""
         return list(self._sandboxes.values())
-
-
-_sandbox: DockerSandbox | None = None
-
-
-def get_sandbox() -> DockerSandbox:
-    """Get the global sandbox instance."""
-    global _sandbox
-    if _sandbox is None:
-        _sandbox = DockerSandbox()
-    return _sandbox

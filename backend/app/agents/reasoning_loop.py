@@ -521,15 +521,3 @@ class ReasoningLoop:
                 "success_rate": len(successful) / len(results) if results else 0,
             },
         }
-
-
-# Global loop instance
-_reasoning_loop: ReasoningLoop | None = None
-
-
-def get_reasoning_loop() -> ReasoningLoop:
-    """Get the global reasoning loop instance."""
-    global _reasoning_loop
-    if _reasoning_loop is None:
-        _reasoning_loop = ReasoningLoop()
-    return _reasoning_loop

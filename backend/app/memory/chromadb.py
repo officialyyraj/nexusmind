@@ -652,14 +652,3 @@ class ChromaMemoryService:
         except Exception:
             return False
 
-
-_memory_service: ChromaMemoryService | None = None
-
-
-def get_memory_service() -> ChromaMemoryService:
-    """Get the global memory service."""
-    global _memory_service
-    if _memory_service is None:
-        _memory_service = ChromaMemoryService()
-    return _memory_service
-

@@ -9,7 +9,7 @@ from typing import Any
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 
-from app.config import get_settings
+from app.config import get_settings, Settings
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -47,11 +47,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(
     data: dict[str, Any],
+    settings: Settings,
     expires_delta: timedelta | None = None,
     token_type: str = "access",
 ) -> str:
     """Create a JWT access token."""
-    settings = get_settings()
     to_encode = data.copy()
 
     if expires_delta:
@@ -76,9 +76,8 @@ def create_access_token(
     return encoded_jwt
 
 
-def decode_access_token(token: str) -> dict[str, Any] | None:
+def decode_access_token(token: str, settings: Settings) -> dict[str, Any] | None:
     """Decode and verify a JWT access token."""
-    settings = get_settings()
     try:
         payload = jwt.decode(
             token,
@@ -96,7 +95,7 @@ def decode_access_token(token: str) -> dict[str, Any] | None:
         return None
 
 
-def decode_access_token_strict(token: str) -> dict[str, Any]:
+def decode_access_token_strict(token: str, settings: Settings) -> dict[str, Any]:
     """
     Decode and verify a JWT access token with strict validation.
     
@@ -108,8 +107,6 @@ def decode_access_token_strict(token: str) -> dict[str, Any]:
     Returns:
         Token payload dictionary
     """
-    settings = get_settings()
-    
     if not token:
         raise MalformedTokenError("Token is empty")
     
@@ -229,14 +226,3 @@ class RateLimiter:
         return max(0, self.requests_per_minute - len(recent_requests))
 
 
-# Global rate limiter instance
-_rate_limiter: RateLimiter | None = None
-
-
-def get_rate_limiter() -> RateLimiter:
-    """Get the global rate limiter instance."""
-    global _rate_limiter
-    if _rate_limiter is None:
-        settings = get_settings()
-        _rate_limiter = RateLimiter(requests_per_minute=settings.rate_limit_per_minute)
-    return _rate_limiter

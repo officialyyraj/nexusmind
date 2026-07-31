@@ -3,10 +3,10 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.dependencies import AuthenticatedUser
-from app.sandbox.docker import DockerSandbox, get_sandbox, SandboxStatus
+from app.dependencies import AuthenticatedUser, SandboxManager
+from app.sandbox.docker import DockerSandbox, SandboxStatus
 from app.api.v1.schemas import (
     SandboxAllocateRequest,
     SandboxResponse,
@@ -25,10 +25,9 @@ router = APIRouter(prefix="/sandbox", tags=["sandbox"])
 async def allocate_sandbox(
     data: SandboxAllocateRequest,
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> SandboxResponse:
     """Allocate a new sandbox instance."""
-    sandbox_service = get_sandbox()
-    
     try:
         sandbox = await sandbox_service.allocate(
             image=data.image,
@@ -51,9 +50,9 @@ async def allocate_sandbox(
 @router.get("/", response_model=list[SandboxResponse])
 async def list_sandboxes(
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> list[SandboxResponse]:
     """List all allocated sandbox instances."""
-    sandbox_service = get_sandbox()
     sandboxes = sandbox_service.list_sandboxes()
     
     return [
@@ -72,10 +71,9 @@ async def execute_code(
     sandbox_id: str,
     data: dict[str, Any],
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> ExecutionResultResponse:
     """Execute code in sandbox."""
-    sandbox_service = get_sandbox()
-    
     # Validate sandbox exists
     sandbox_status = await sandbox_service.get_status(sandbox_id)
     if sandbox_status is None:
@@ -121,10 +119,9 @@ async def terminal_command(
     sandbox_id: str,
     data: TerminalRequest,
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> dict[str, Any]:
     """Execute terminal command in sandbox."""
-    sandbox_service = get_sandbox()
-    
     # Validate sandbox exists
     sandbox_status = await sandbox_service.get_status(sandbox_id)
     if sandbox_status is None:
@@ -165,11 +162,10 @@ async def terminal_command(
 async def list_files(
     sandbox_id: str,
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
     path: str = "/workspace",
 ) -> FileListResponse:
     """List files in sandbox."""
-    sandbox_service = get_sandbox()
-    
     # Validate sandbox exists
     sandbox_status = await sandbox_service.get_status(sandbox_id)
     if sandbox_status is None:
@@ -205,10 +201,9 @@ async def read_file(
     sandbox_id: str,
     path: str,
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> FileReadResponse:
     """Read file from sandbox."""
-    sandbox_service = get_sandbox()
-    
     # Validate sandbox exists
     sandbox_status = await sandbox_service.get_status(sandbox_id)
     if sandbox_status is None:
@@ -253,10 +248,9 @@ async def write_file(
     sandbox_id: str,
     data: FileWriteRequest,
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> FileWriteResponse:
     """Write file to sandbox."""
-    sandbox_service = get_sandbox()
-    
     # Validate sandbox exists
     sandbox_status = await sandbox_service.get_status(sandbox_id)
     if sandbox_status is None:
@@ -301,16 +295,15 @@ async def write_file(
 async def release_sandbox(
     sandbox_id: str,
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> SandboxResponse:
     """Release sandbox instance."""
-    sandbox_service = get_sandbox()
-    
     try:
-        success = await sandbox_service.release(sandbox_id)
+        success, error = await sandbox_service.release(sandbox_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Sandbox not found: {sandbox_id}",
+                detail=error or f"Sandbox not found: {sandbox_id}",
             )
         
         return SandboxResponse(
@@ -337,12 +330,11 @@ async def release_sandbox(
 async def get_sandbox_status(
     sandbox_id: str,
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> dict[str, Any]:
     """Get sandbox status."""
-    sandbox_service = get_sandbox()
-    
-    status = await sandbox_service.get_status(sandbox_id)
-    if status is None:
+    status_val = await sandbox_service.get_status(sandbox_id)
+    if status_val is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Sandbox not found: {sandbox_id}",
@@ -350,7 +342,7 @@ async def get_sandbox_status(
     
     return {
         "id": sandbox_id,
-        "status": status.value,
+        "status": status_val.value,
     }
 
 
@@ -359,10 +351,9 @@ async def install_packages(
     sandbox_id: str,
     data: dict[str, Any],
     user: AuthenticatedUser,
+    sandbox_service: SandboxManager,
 ) -> dict[str, Any]:
     """Install packages in sandbox."""
-    sandbox_service = get_sandbox()
-    
     # Validate sandbox exists
     sandbox_status = await sandbox_service.get_status(sandbox_id)
     if sandbox_status is None:

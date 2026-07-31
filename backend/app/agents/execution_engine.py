@@ -23,6 +23,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from functools import lru_cache
 from typing import Any, Callable
 
 from app.tools.registry import (
@@ -265,7 +266,8 @@ class AgentToolInvoker:
                 tool_name=tool_call.tool_name,
                 tool_type=tool_call.tool_type,
                 status=ToolCallStatus.FAILED,
-                error=f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}",
+                error=f"""{type(e).__name__}: {str(e)}
+{traceback.format_exc()}""",
                 execution_time=(datetime.utcnow() - start_time).total_seconds(),
             )
     
@@ -525,14 +527,9 @@ class AgentToolInvoker:
             "results": [r.to_dict() for r in results],
         }
 
-
-# Global invoker instance
-_invoker: AgentToolInvoker | None = None
-
-
-def get_tool_invoker() -> AgentToolInvoker:
-    """Get the global tool invoker instance."""
-    global _invoker
-    if _invoker is None:
-        _invoker = AgentToolInvoker()
-    return _invoker
+@lru_cache()
+def get_tool_invoker() -> "AgentToolInvoker":
+    """
+    Get a cached, singleton instance of the AgentToolInvoker.
+    """
+    return AgentToolInvoker()

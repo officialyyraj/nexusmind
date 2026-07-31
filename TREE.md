@@ -25,79 +25,49 @@ nexusmind/                              📦 Root (214 files, 79 dirs)
 │   │   │
 │   │   ├── agents/                   # Agent System
 │   │   │   ├── __init__.py
-│   │   │   ├── base.py               # Base agent class
-│   │   │   ├── registry.py           # Agent registry
-│   │   │   ├── supervisor.py        # Supervisor agent
-│   │   │   ├── types/               # Agent implementations
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── planner.py        # Task planner
-│   │   │   │   ├── researcher.py     # Context gatherer
-│   │   │   │   ├── coder.py          # Code writer
-│   │   │   │   ├── reviewer.py       # Code reviewer
-│   │   │   │   ├── tester.py         # Test runner
-│   │   │   │   ├── documentation.py  # Doc generator
-│   │   │   │   └── manager.py        # Coordinator
-│   │   │   └── tools/                # Agent tools
-│   │   │       ├── __init__.py
-│   │   │       ├── terminal.py        # Shell exec
-│   │   │       ├── browser.py        # Playwright
-│   │   │       ├── file_editor.py    # File ops
-│   │   │       ├── search.py         # Web search
-│   │   │       └── github.py         # GitHub API
+│   │   │   ├── types.py              # AgentType enum
+│   │   │   ├── implementations.py    # Baseline agent implementations
+│   │   │   ├── autonomous.py         # Advanced, tool-using agents
+│   │   │   ├── execution_engine.py   # Agent tool invocation logic
+│   │   │   └── reasoning_loop.py     # Core agent reasoning cycle
 │   │   │
-│   │   ├── orchestration/            # LangGraph
+│   │   ├── orchestration/            # Orchestration layer
 │   │   │   ├── __init__.py
-│   │   │   ├── graph.py              # Graph def
-│   │   │   ├── state.py              # State schema
-│   │   │   ├── nodes.py              # Graph nodes
-│   │   │   ├── edges.py              # Conditional edges
-│   │   │   └── executor.py           # Graph runner
+│   │   │   ├── executor.py           # Sequential agent executor
+│   │   │   ├── supervisor.py         # Complex multi-agent coordinator
+│   │   │   └── project_generator.py  # Autonomous project generation
 │   │   │
 │   │   ├── sandbox/                  # Docker Sandbox
 │   │   │   ├── __init__.py
-│   │   │   ├── manager.py            # Lifecycle mgmt
-│   │   │   ├── docker.py             # Docker SDK
-│   │   │   ├── executor.py           # Code runner
-│   │   │   ├── terminal.py           # PTY/shell
-│   │   │   └── browser.py            # Browser auto
+│   │   │   └── docker.py             # Docker operations
 │   │   │
 │   │   ├── memory/                  # Memory System
 │   │   │   ├── __init__.py
-│   │   │   ├── chromadb.py           # ChromaDB client
-│   │   │   ├── vector_store.py       # Vector ops
-│   │   │   ├── semantic_cache.py     # Cache layer
-│   │   │   └── session_memory.py     # Session ctx
+│   │   │   └── chromadb.py           # ChromaDB client
 │   │   │
 │   │   ├── llm/                     # LLM Integration
 │   │   │   ├── __init__.py
-│   │   │   ├── factory.py            # Provider factory
-│   │   │   ├── ollama.py            # Ollama adapter
-│   │   │   ├── openai.py            # OpenAI adapter
-│   │   │   └── base.py              # LLM interface
+│   │   │   ├── routing/             # Intelligent model routing
+│   │   │   └── byok/                # Bring-Your-Own-Key service
 │   │   │
 │   │   ├── mcp/                     # MCP Support
 │   │   │   ├── __init__.py
-│   │   │   ├── server.py            # MCP server
-│   │   │   ├── protocol.py          # Protocol
-│   │   │   └── tools.py            # MCP tools
+│   │   │   ├── manager.py           # Manages external tool servers
+│   │   │   ├── client.py            # Client for a single tool server
+│   │   │   └── registry.py          # Central tool registry
 │   │   │
 │   │   ├── plugins/                 # Plugin System
 │   │   │   ├── __init__.py
 │   │   │   ├── manager.py           # Plugin lifecycle
 │   │   │   ├── loader.py            # Discovery
-│   │   │   ├── registry.py         # Registry
-│   │   │   └── templates/
-│   │   │       ├── __init__.py
-│   │   │       └── example.py       # Template plugin
+│   │   │   └── registry.py          # Registry
 │   │   │
 │   │   ├── db/                     # Database Layer
 │   │   │   ├── __init__.py
 │   │   │   ├── database.py         # Connection
 │   │   │   ├── session.py          # Session model
 │   │   │   ├── message.py          # Message model
-│   │   │   ├── artifact.py         # Artifact model
-│   │   │   └── migrations/
-│   │   │       └── env.py
+│   │   │   └── artifact.py         # Artifact model
 │   │   │
 │   │   ├── streaming/              # Real-time
 │   │   │   ├── __init__.py
@@ -107,7 +77,6 @@ nexusmind/                              📦 Root (214 files, 79 dirs)
 │   │   │
 │   │   └── utils/                  # Utilities
 │   │       ├── __init__.py
-│   │       ├── rate_limiter.py
 │   │       ├── logger.py
 │   │       └── security.py
 │   │
@@ -331,7 +300,7 @@ nexusmind/                              📦 Root (214 files, 79 dirs)
 
 | Component | Files | Purpose |
 |-----------|-------|---------|
-| **Backend** | 92 | FastAPI + LangGraph + Docker |
+| **Backend** | 92 | FastAPI + Consolidated Architecture + Docker |
 | **Frontend** | 85 | Next.js 14 + React + TypeScript |
 | **Sandbox** | 11 | Docker + Playwright + Tools |
 | **Docs** | 11 | Architecture, API, Plugin docs |

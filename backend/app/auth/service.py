@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings
 from app.db.session import ApiKey, User
 from app.utils.security import (
     create_access_token,
@@ -22,8 +23,9 @@ from app.utils.security import (
 class AuthService:
     """Authentication service for user management."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, settings: Settings):
         self.db = db
+        self.settings = settings
 
     async def get_user_by_email(self, email: str) -> User | None:
         """Get user by email."""
@@ -81,6 +83,7 @@ class AuthService:
         """Create access token for user."""
         return create_access_token(
             data={"sub": str(user.id), "email": user.email},
+            settings=self.settings,
             expires_delta=expires_delta,
         )
 

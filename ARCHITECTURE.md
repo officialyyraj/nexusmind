@@ -2,7 +2,7 @@
 
 ## Overview
 
-NexusMind is an open-source autonomous multi-agent AI platform similar to Manus, Devin, and OpenHands. It provides a FastAPI backend with Next.js frontend integration, LangGraph orchestration, Docker sandbox execution, and ChromaDB memory.
+NexusMind is an open-source autonomous multi-agent AI platform similar to Manus, Devin, and OpenHands. It provides a FastAPI backend with Next.js frontend integration, a flexible orchestration layer, Docker sandbox execution, and ChromaDB memory.
 
 ## Tech Stack
 
@@ -11,7 +11,7 @@ NexusMind is an open-source autonomous multi-agent AI platform similar to Manus,
 - **Database**: PostgreSQL with SQLAlchemy (async)
 - **Memory**: ChromaDB (vector store)
 - **LLM Providers**: Ollama, OpenAI-compatible, Anthropic
-- **Orchestration**: LangGraph
+- **Orchestration**: A multi-faceted system using an executor, supervisor, and project generator.
 - **Sandbox**: Docker containers
 - **Streaming**: WebSocket + Server-Sent Events (SSE)
 
@@ -47,10 +47,16 @@ nexusmind/
 │   │   │   └── routes.py         # Auth endpoints
 │   │   │
 │   │   ├── agents/               # Multi-agent system
-│   │   │   ├── base.py           # BaseAgent class
 │   │   │   ├── types.py          # AgentType enum
-│   │   │   ├── implementations.py # 7 agent implementations
-│   │   │   └── workflow.py       # LangGraph workflow
+│   │   │   ├── implementations.py # Baseline agent implementations
+│   │   │   ├── autonomous.py     # Advanced, tool-using agents
+│   │   │   ├── execution_engine.py # Agent tool invocation logic
+│   │   │   └── reasoning_loop.py   # Core agent reasoning cycle
+│   │   │
+│   │   ├── orchestration/        # Orchestration layer
+│   │   │   ├── executor.py       # Sequential agent executor
+│   │   │   ├── supervisor.py     # Complex multi-agent coordinator
+│   │   │   └── project_generator.py # Autonomous project generation
 │   │   │
 │   │   ├── db/                   # Database models
 │   │   │   ├── database.py       # SQLAlchemy setup
@@ -59,22 +65,23 @@ nexusmind/
 │   │   │   └── artifact.py       # Artifact, Task, AgentLog models
 │   │   │
 │   │   ├── llm/                  # LLM providers
-│   │   │   ├── providers.py      # Ollama, OpenAI, Anthropic
-│   │   │   └── service.py        # LLM service
+│   │   │   ├── routing/          # Intelligent model routing
+│   │   │   └── byok/             # Bring-Your-Own-Key service
+│   │   │
+│   │   ├── mcp/                  # Multi-Contributor Protocol
+│   │   │   ├── manager.py        # Manages external tool servers
+│   │   │   ├── client.py         # Client for a single tool server
+│   │   │   └── registry.py       # Central tool registry
 │   │   │
 │   │   ├── sandbox/              # Code execution
-│   │   │   ├── docker.py         # Docker sandbox
-│   │   │   ├── executor.py        # Code executor
-│   │   │   └── terminal.py        # Terminal emulation
+│   │   │   └── docker.py         # Docker sandbox implementation
 │   │   │
 │   │   ├── memory/               # Memory system
-│   │   │   ├── chromadb.py       # ChromaDB integration
-│   │   │   ├── semantic_cache.py  # Semantic caching
-│   │   │   └── session_memory.py  # Session memory
+│   │   │   └── chromadb.py       # ChromaDB integration
 │   │   │
 │   │   ├── tools/                # Agent tools
 │   │   │   ├── registry.py       # Tool registry
-│   │   │   └── sandbox.py        # Sandbox tool
+│   │   │   └── docker_sandbox_tool.py # Sandbox tool
 │   │   │
 │   │   ├── streaming/            # Real-time streaming
 │   │   │   ├── events.py         # Event types
@@ -83,8 +90,7 @@ nexusmind/
 │   │   │
 │   │   └── utils/                # Utilities
 │   │       ├── logger.py         # Structured logging
-│   │       ├── security.py       # JWT, password hashing
-│   │       └── rate_limiter.py   # Rate limiting
+│   │       └── security.py       # JWT, password hashing
 │   │
 │   ├── tests/                    # Test suite
 │   │   ├── api/
@@ -297,11 +303,11 @@ nexusmind/
 - Async LLM provider calls
 - Non-blocking streaming
 
-### 2. LangGraph for Orchestration
-- State-based agent coordination
-- Parallel agent execution support
-- Conditional routing between agents
-- Checkpointing for fault tolerance
+### 2. Consolidated Core Architecture
+- **Orchestration**: A multi-faceted layer with a sequential executor, a complex supervisor, and a project generator.
+- **Agents**: A centralized framework where agent types are defined in `types.py` and implemented in `implementations.py` and `autonomous.py`.
+- **LLM Access**: A dual system combining dynamic, criteria-based routing (`app/llm/routing`) and user-specific credentials (`app/llm/byok`).
+- **MCP**: A manager-client architecture (`manager.py`, `client.py`, `registry.py`) for integrating external tools.
 
 ### 3. Docker Sandbox Isolation
 - Each sandbox is a separate container
@@ -349,7 +355,7 @@ nexusmind/
 
 ### Phase 4 ✅ - Agents
 - 7 agent types
-- LangGraph workflow
+- Consolidated agent framework
 - Agent communication
 - Tool registry
 

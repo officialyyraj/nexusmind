@@ -27,7 +27,7 @@ from app.mcp.schemas import (
     ServerStatus,
     TransportType,
 )
-from app.mcp.server_manager import MCPServerManager, get_mcp_manager
+from app.mcp.manager import MCPServerManager, get_mcp_manager
 from app.mcp.transports import StdioTransport, HTTPTransport
 
 __all__ = [

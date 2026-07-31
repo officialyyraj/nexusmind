@@ -126,8 +126,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize tools registry
     try:
+        from app.dependencies import get_sandbox_manager, get_docker_sandbox_tool
         from app.tools.registry import get_tool_registry
-        from app.tools import registration as _  # noqa: F401 - registers tools
+        from app.tools.registration import register_tools
+        
+        settings = get_settings()
+        sandbox_manager = get_sandbox_manager(settings)
+        docker_sandbox_tool = get_docker_sandbox_tool(sandbox_manager)
+        
+        register_tools(docker_sandbox_tool)
+
         registry = get_tool_registry()
         tools = registry.list_tools(include_mcp=True)
         logger.info(f"Tool Registry initialized with {len(tools)} tools")

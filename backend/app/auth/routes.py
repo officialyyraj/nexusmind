@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 from app.auth.service import AuthService
 from app.db.session import User
-from app.dependencies import AuthenticatedUser, DbSession
+from app.dependencies import AuthenticatedUser, DbSession, AppSettings
 
 router = APIRouter()
 
@@ -94,9 +94,10 @@ class ApiKeyCreatedResponse(BaseModel):
 async def register(
     request: RegisterRequest,
     db: DbSession,
+    settings: AppSettings,
 ) -> dict[str, Any]:
     """Register a new user."""
-    service = AuthService(db)
+    service = AuthService(db, settings)
 
     # Check if user exists
     existing = await service.get_user_by_email(request.email)
@@ -132,9 +133,10 @@ async def register(
 async def login(
     request: LoginRequest,
     db: DbSession,
+    settings: AppSettings,
 ) -> dict[str, Any]:
     """Login with email and password."""
-    service = AuthService(db)
+    service = AuthService(db, settings)
 
     user = await service.authenticate_user(request.email, request.password)
     if not user:
@@ -175,9 +177,10 @@ async def create_api_key(
     request: ApiKeyCreate,
     user: AuthenticatedUser,
     db: DbSession,
+    settings: AppSettings,
 ) -> dict[str, Any]:
     """Create a new API key."""
-    service = AuthService(db)
+    service = AuthService(db, settings)
 
     expires_at = None
     if request.expires_in_days:
@@ -202,9 +205,10 @@ async def create_api_key(
 async def list_api_keys(
     user: AuthenticatedUser,
     db: DbSession,
+    settings: AppSettings,
 ) -> list[dict[str, Any]]:
     """List all API keys for the current user."""
-    service = AuthService(db)
+    service = AuthService(db, settings)
     api_keys = await service.list_api_keys(user.id)
 
     return [
@@ -224,9 +228,10 @@ async def revoke_api_key(
     api_key_id: str,
     user: AuthenticatedUser,
     db: DbSession,
+    settings: AppSettings,
 ) -> dict[str, Any]:
     """Revoke an API key."""
-    service = AuthService(db)
+    service = AuthService(db, settings)
 
     success = await service.revoke_api_key(uuid.UUID(api_key_id), user.id)
     if not success:

@@ -21,75 +21,49 @@ nexusmind/
 │   │   │   └── ws.py                 # WebSocket handlers
 │   │   │
 │   │   ├── agents/                   # Agent system
-│   │   │   ├── base.py               # Base agent class
-│   │   │   ├── registry.py           # Agent registry
-│   │   │   ├── supervisor.py        # Supervisor agent
-│   │   │   ├── types/               # Agent implementations
-│   │   │   │   ├── planner.py
-│   │   │   │   ├── researcher.py
-│   │   │   │   ├── coder.py
-│   │   │   │   ├── reviewer.py
-│   │   │   │   ├── tester.py
-│   │   │   │   ├── documentation.py
-│   │   │   │   └── manager.py
-│   │   │   └── tools/                # Agent tools
-│   │   │       ├── terminal.py
-│   │   │       ├── browser.py
-│   │   │       ├── file_editor.py
-│   │   │       ├── search.py
-│   │   │       └── github.py
+│   │   │   ├── types.py              # AgentType enum
+│   │   │   ├── implementations.py    # Baseline agent implementations
+│   │   │   ├── autonomous.py         # Advanced, tool-using agents
+│   │   │   ├── execution_engine.py   # Agent tool invocation logic
+│   │   │   └── reasoning_loop.py     # Core agent reasoning cycle
 │   │   │
-│   │   ├── orchestration/             # LangGraph orchestration
-│   │   │   ├── graph.py              # Graph definition
-│   │   │   ├── state.py              # State schema
-│   │   │   ├── nodes.py              # Graph nodes
-│   │   │   ├── edges.py              # Conditional edges
-│   │   │   └── executor.py           # Graph executor
+│   │   ├── orchestration/            # Orchestration layer
+│   │   │   ├── executor.py           # Sequential agent executor
+│   │   │   ├── supervisor.py         # Complex multi-agent coordinator
+│   │   │   └── project_generator.py  # Autonomous project generation
 │   │   │
 │   │   ├── sandbox/                  # Docker sandbox
-│   │   │   ├── manager.py            # Sandbox lifecycle
-│   │   │   ├── docker.py             # Docker operations
-│   │   │   ├── executor.py           # Code execution
-│   │   │   ├── terminal.py          # PTY/shell interface
-│   │   │   └── browser.py          # Browser automation
+│   │   │   └── docker.py             # Docker operations
 │   │   │
 │   │   ├── memory/                   # Memory system
-│   │   │   ├── chromadb.py           # ChromaDB integration
-│   │   │   ├── vector_store.py       # Vector operations
-│   │   │   ├── semantic_cache.py     # Semantic caching
-│   │   │   └── session_memory.py     # Session context
+│   │   │   └── chromadb.py           # ChromaDB integration
 │   │   │
 │   │   ├── llm/                      # LLM integration
-│   │   │   ├── factory.py            # LLM provider factory
-│   │   │   ├── ollama.py             # Ollama adapter
-│   │   │   ├── openai.py            # OpenAI adapter
-│   │   │   └── base.py              # Base LLM interface
+│   │   │   ├── routing/              # Intelligent model routing
+│   │   │   └── byok/                 # Bring-Your-Own-Key service
 │   │   │
 │   │   ├── mcp/                      # MCP support
-│   │   │   ├── server.py             # MCP server
-│   │   │   ├── protocol.py           # Protocol handlers
-│   │   │   └── tools.py              # MCP tool adapters
+│   │   │   ├── manager.py            # Manages external tool servers
+│   │   │   ├── client.py             # Client for a single tool server
+│   │   │   └── registry.py           # Central tool registry
 │   │   │
 │   │   ├── plugins/                  # Plugin system
 │   │   │   ├── manager.py            # Plugin lifecycle
 │   │   │   ├── loader.py             # Plugin discovery
-│   │   │   ├── registry.py           # Plugin registry
-│   │   │   └── templates/           # Plugin templates
+│   │   │   └── registry.py           # Plugin registry
 │   │   │
 │   │   ├── db/                       # Database layer
 │   │   │   ├── database.py           # Database connection
-│   │   │   ├── session.py           # Session models
-│   │   │   ├── message.py           # Message models
-│   │   │   ├── artifact.py          # Artifact models
-│   │   │   └── migrations/          # Alembic migrations
+│   │   │   ├── session.py            # Session models
+│   │   │   ├── message.py            # Message models
+│   │   │   └── artifact.py           # Artifact models
 │   │   │
 │   │   ├── streaming/                # Real-time streaming
 │   │   │   ├── ws_manager.py         # WebSocket manager
-│   │   │   ├── sse.py               # SSE handler
-│   │   │   └── events.py           # Event definitions
+│   │   │   ├── sse.py                # SSE handler
+│   │   │   └── events.py             # Event definitions
 │   │   │
 │   │   └── utils/                    # Utilities
-│   │       ├── rate_limiter.py
 │   │       ├── logger.py
 │   │       └── security.py
 │   │

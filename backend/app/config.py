@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production-use-strong-secret"
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 60 * 24 * 7  # 7 days
+    auth_max_failed_attempts: int = 5
+    auth_lockout_seconds: int = 300  # 5 minutes
     api_key_header: str = "X-API-Key"
 
     # LLM Providers

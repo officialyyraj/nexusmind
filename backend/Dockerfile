@@ -19,11 +19,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Create a non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
 # Create directories
 RUN mkdir -p /app/workspace /app/plugins /app/data
+# Change ownership of directories that need to be writable at runtime
+RUN chown -R appuser:appuser /app/workspace /app/plugins /app/data
 
 # Make startup script executable
 RUN chmod +x /app/startup.sh
+
+# Switch to the non-root user
+USER appuser
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

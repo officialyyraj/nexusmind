@@ -1,11 +1,14 @@
 """Authentication service."""
 
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from redis.exceptions import RedisError
+from redis.asyncio import Redis
 
 from app.config import Settings
 from app.db.session import ApiKey, User
@@ -19,13 +22,16 @@ from app.utils.security import (
     verify_password,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class AuthService:
     """Authentication service for user management."""
 
-    def __init__(self, db: AsyncSession, settings: Settings):
+    def __init__(self, db: AsyncSession, settings: Settings, redis_client: Redis):
         self.db = db
         self.settings = settings
+        self.redis = redis_client
 
     async def get_user_by_email(self, email: str) -> User | None:
         """Get user by email."""
@@ -61,18 +67,59 @@ class AuthService:
         password: str,
     ) -> User | None:
         """Authenticate user with email and password."""
+        lockout_key = f"lockout:{email}"
+        failure_key = f"failed_attempts:{email}"
+
+        try:
+            # 1. Check if the user is currently locked out
+            if await self.redis.exists(lockout_key):
+                return None  # Fail silently if locked out
+        except RedisError:
+            logger.warning("Redis connection failed. Bypassing lockout check.", exc_info=True)
+            # Fail open: If Redis is down, proceed with auth attempt.
+
         user = await self.get_user_by_email(email)
-        if not user:
+
+        # 2. Verify user and password
+        # This block runs for invalid users or invalid passwords to prevent user enumeration.
+        if not user or not user.password_hash or not verify_password(password, user.password_hash):
+            try:
+                # Increment failure count for the email address
+                current_failures = await self.redis.incr(failure_key)
+                await self.redis.expire(failure_key, self.settings.auth_lockout_seconds)
+                # If max attempts reached, set lockout
+                if current_failures >= self.settings.auth_max_failed_attempts:
+                    await self.redis.set(
+                        lockout_key, "locked", ex=self.settings.auth_lockout_seconds
+                    )
+                    await self.redis.delete(failure_key)
+            except RedisError:
+                logger.warning("Redis connection failed. Could not track failed login attempt.", exc_info=True)
             return None
-        if not user.password_hash:
-            return None
-        if not verify_password(password, user.password_hash):
-            return None
+
         if not user.is_active:
             return None
-        # Update last login
+
+        # 3. Successful login
+        try:
+            # On success, reset failure counter and clear any potential lockout
+            # Use a pipeline for atomicity
+            async with self.redis.pipeline() as pipe:
+                pipe.delete(failure_key)
+                pipe.delete(lockout_key)
+                await pipe.execute()
+        except RedisError:
+            # If Redis is down on successful login, we can't clear the counters.
+            # This is acceptable; the counters will expire naturally.
+            # Log the issue and continue.
+            logger.warning(
+                "Redis connection failed. Could not clear lockout counters for successful login.", exc_info=True
+            )
+
+        # Update last login timestamp
         user.last_login = datetime.utcnow()
         await self.db.flush()
+
         return user
 
     async def create_access_token_for_user(

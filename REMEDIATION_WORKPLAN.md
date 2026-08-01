@@ -139,51 +139,66 @@ Phase 0 (empty files must be deleted first, or "canonical" designation is ambigu
 ### Objective
 Fix the specific, concrete bugs that will break the backend the moment it runs under any realistic condition (multiple replicas, a restart, an unbounded attacker), independent of the larger sandbox rebuild. These are correctness bugs, not "hardening" — they must be fixed before the backend can be considered functionally stable, and they do not require the sandbox to be rebuilt first.
 
+### Repository Invariants
+The following architectural elements are considered stable and **must not** be changed during Phase 2:
+- All existing Architecture Decision Records (ADRs).
+- The canonical module locations established in Phase 1 (e.g., for orchestration, agents, LLM access, MCP).
+- The existing REST API endpoint structure and public-facing OpenAPI schema.
+- The existing database schema.
+- The core orchestration architecture (executor/supervisor/project_generator).
+- Any other consolidation decisions made during Phase 1.
+
+### Execution Constraints
+Each execution cycle should modify only one logical task. The maximum recommended scope is one task, delivered in one commit, touching the minimal necessary file set. Implementation must be validated after every completed task.
+
+If repository evidence conflicts with `REMEDIATION_WORKPLAN.md` or this specification, **repository evidence wins**. The discrepancy must be documented, and work should proceed based on the repository's actual state, not on outdated planning assumptions.
+
 ### Files / Areas Affected
 - `app/config.py`
 - `app/security/startup_validator.py`, `secrets.py`, `middleware.py`
 - `app/auth/service.py`
-- `docker-compose.yml` (all three, reconciled per Phase 0 findings)
+- `docker-compose.yml` (reconciled per Phase 0 findings)
 - `backend/requirements.txt`, `backend/pyproject.toml`
-- `nexusmind/.env.example`, `backend/.env.example`
-- Frontend CSP configuration (wherever `Content-Security-Policy` headers are set — likely `security/middleware.py` or Next.js config)
+- `.env.example` files
+- `backend/Dockerfile`
+- `.github/workflows/*.yml`
 
 ### Tasks
-- [ ] Make `SECRET_KEY` mandatory (fail-hard at startup) in every environment except an explicitly-named local/dev-only mode — remove the current behavior where enforcement only triggers when `ENVIRONMENT=="production"`.
-- [ ] Change `docker-compose.yml`'s default `ENVIRONMENT` value so local dev cannot silently masquerade as safe-by-default; document explicitly in `.env.example` what `ENVIRONMENT=production` requires.
-- [ ] Disable or explicitly gate `AUTO_GENERATE_SECRETS=true` so it cannot apply to any environment where JWTs need to remain valid across restarts or multiple replicas.
-- [ ] Replace the in-process, dict-based `RateLimitMiddleware` with a Redis-backed implementation (Redis is already a project dependency) so limits are shared across workers/replicas and evicted properly.
-- [ ] Add a trusted-proxy allowlist check before trusting `X-Forwarded-For`; if the app is not behind a known reverse proxy, ignore the header entirely and use the direct connecting IP.
-- [ ] Add lockout/backoff at the service layer in `auth/service.py`'s `authenticate_user` (do not rely solely on the rate limiter, which was previously broken and is being changed in this same phase).
-- [ ] Fix the Content-Security-Policy to remove `'unsafe-inline'` and `'unsafe-eval'` from `script-src`; move to nonce- or hash-based CSP, updating the frontend build if it currently relies on inline scripts.
-- [ ] Pin all backend dependencies to exact versions and generate a lockfile (`pip-tools` → `requirements.lock`, or migrate `pyproject.toml` to Poetry/`uv` with a committed lock).
-- [ ] Populate `.env.example` (root/backend) with every variable read in `config.py`, with safe placeholder values and inline comments explaining each.
-- [ ] Add a `USER` directive to `backend/Dockerfile` (and `frontend/Dockerfile` if also root) so containers do not run as root by default.
-- [ ] Update the GitHub Actions workflow (`backend-tests.yml`) to source its `SECRET_KEY: test-secret-key-for-testing` value from GitHub Actions secrets rather than a hardcoded literal, even for test-only values.
+- [ ] **T2.1: Dependency Management:** Use the repository's existing dependency management strategy to pin all backend dependencies to exact versions and generate a lockfile. If no strategy exists, document the decision-making process for the chosen tooling before implementation.
+- [ ] **T2.2: Container Hardening:** Add a non-root `USER` directive to `backend/Dockerfile` so the container does not run as root by default.
+- [ ] **T2.3: Mandatory SECRET_KEY:** Make `SECRET_KEY` mandatory (fail-hard at startup) in every environment except an explicitly-named local/dev-only mode. Remove the current behavior where enforcement only triggers when `ENVIRONMENT=="production"`.
+- [ ] **T2.4: AUTO_GENERATE_SECRETS:** Disable or explicitly gate `AUTO_GENERATE_SECRETS=true` so it cannot apply to any environment where JWTs need to remain valid across restarts or multiple replicas.
+- [ ] **T2.5: CI Secret Updates:** Update the GitHub Actions workflow (`backend-tests.yml`) to source its `SECRET_KEY` value from GitHub Actions secrets rather than a hardcoded literal.
+- [ ] **T2.6: Redis-Backed Rate Limiter:** Replace the in-process, dict-based `RateLimitMiddleware` with a Redis-backed implementation. The Redis client **must** be managed via dependency injection and must not be instantiated directly within the middleware or as a hidden global singleton.
+- [ ] **T2.7: Trusted Proxy Validation:** Add a trusted-proxy allowlist check before trusting the `X-Forwarded-For` header. If the app is not behind a known reverse proxy, ignore the header entirely and use the direct connecting IP.
+- [ ] **T2.8: Authentication Lockout:** Add lockout/backoff logic at the service layer in `auth/service.py`'s `authenticate_user`. This is a behavioral change; the public API shape, including request and response schemas, must remain compatible.
+- [ ] **T2.9: Populate .env.example:** Populate all `.env.example` files with every variable read in `config.py`, providing safe placeholder values and inline comments explaining each.
 
 ### Expected Deliverables
-- A backend that produces a hard startup failure (not a silent default) when `SECRET_KEY` is unset outside local dev mode.
+- A locked, reproducible dependency set for the backend.
+- A backend container that runs as a non-root user.
+- A backend that produces a hard startup failure when `SECRET_KEY` is unset outside an explicit local dev mode.
 - A rate limiter that behaves correctly with 2+ backend replicas running concurrently.
-- A locked, reproducible dependency set for both `pip` and any lockfile tooling adopted.
-- A CSP that would pass a standard security review (no `unsafe-inline`/`unsafe-eval`).
 - Fully populated `.env.example` files.
+- CI workflows that use secrets for sensitive variables.
 
 ### Verification Checklist
-- Starting the backend with `ENVIRONMENT` unset and no `SECRET_KEY` set fails fast with a clear error, in every environment except explicit local-dev mode.
+- The lockfile-based installation (`pip install -r requirements.lock` or equivalent) produces an identical dependency tree on a clean machine on two separate runs.
+- `docker inspect` on the running backend container shows a non-root `USER`. The application must start successfully, and previously-working functionality (e.g., writing to mounted volumes, creating temp files) must remain operational.
+- Starting the backend with `ENVIRONMENT` unset and no `SECRET_KEY` set fails fast with a clear error.
+- The CI workflow file (`backend-tests.yml`) contains no hardcoded secret literals for `SECRET_KEY`.
 - Run 2 backend replicas behind the rate limiter and confirm a client is throttled at the intended aggregate limit, not per-replica.
 - Send requests with spoofed `X-Forwarded-For` values and confirm rate limiting is not bypassed.
-- `pip install -r requirements.lock` (or lockfile equivalent) produces an identical dependency tree on a clean machine on two separate runs.
-- A CSP header scan (e.g., via browser devtools or an automated header checker) shows no `unsafe-inline`/`unsafe-eval` in `script-src`.
-- `docker inspect` on the running backend container shows a non-root `USER`.
-- CI workflow file contains no hardcoded secret literals.
+- All `.env.example` files are populated and reflect the variables used in `config.py`.
 
 ### Risks
-- Redis-backed rate limiting adds a hard runtime dependency on Redis being available and healthy; if Redis goes down, decide explicitly (and document) whether the app fails open or closed.
-- Removing `unsafe-inline`/`unsafe-eval` from CSP may break existing frontend code that relies on inline scripts/styles; budget time to find and fix those call sites, not just flip the header.
-- Pinning dependencies may surface version conflicts that were previously masked by floating `>=` ranges; resolve before merging, don't pin-and-hope.
+- **Dependency Pinning:** Pinning dependencies may surface version conflicts that were previously masked by floating `>=` ranges; these must be resolved before merging.
+- **Redis Dependency:** The Redis-backed rate limiter adds a hard runtime dependency on Redis. The application's behavior during a Redis outage (fail-open vs. fail-closed) must be explicitly decided and documented.
+- **Permissions:** Changing the container user to non-root may cause runtime permission errors. Verification must include checks for file system access to logs, volumes, and temporary directories.
 
 ### Dependencies
-Phase 0 (consolidated compose files), Phase 1 (stable `app/dependencies.py` injection pattern makes the auth/rate-limit fixes cleaner to implement and test).
+- **Phase 0:** Consolidated `docker-compose.yml` files are required.
+- **Phase 1:** A stable `app/dependencies.py` injection pattern is required to implement the rate-limiter and auth fixes cleanly.
 
 ### Estimated Effort
 **Medium**, 4–6 days.
@@ -270,6 +285,7 @@ Complete and verify the MCP integration and agent framework so that the tool-exe
 
 ### Risks
 - Line-by-line review of ~5,000 LOC of orchestration/agent code may surface deeper design issues than simple bugs, potentially requiring a scope increase mid-phase — budget contingency time.
+- **Deferred Work:** The Content-Security-Policy (CSP) task, originally in Phase 2, is deferred here. It requires removing `'unsafe-inline'` and `'unsafe-eval'` from `script-src`, which may involve frontend changes.
 
 ### Dependencies
 Phase 1 (canonical modules established), Phase 3 (sandbox real, so agent execution paths being audited actually run against a real sandbox rather than a stub).
@@ -298,6 +314,7 @@ Make the deployment configuration match production reality: one canonical compos
 - [ ] Confirm `deployment/northflank.yaml` (or equivalent platform config) references the correct, consolidated image build paths after Phase 0/3 changes.
 - [ ] Add a rollback runbook (referenced but not present in depth per the original audit) covering: bad deploy detection, rollback trigger, and rollback execution steps.
 - [ ] Add dependency-vulnerability scanning (Dependabot or Snyk) as a CI job.
+- [ ] **Deferred Work:** The Content-Security-Policy (CSP) task may be implemented here if not completed in Phase 4, as it has deployment-wide implications.
 
 ### Expected Deliverables
 - One clearly-documented compose/deployment path per environment (local, staging, prod).
@@ -446,7 +463,7 @@ All previous phases.
 | No dependency pinning/lockfile | High | Non-reproducible builds, unreviewed upstream changes ship automatically | 2 |
 | MCP protocol files empty while manager.py carries real logic | Medium | Authorization boundaries unauditable until relocated/documented | 1, 4 |
 | Orchestration/agent 1000+ LOC files never audited | Medium | Unknown correctness risk in retry/hallucination/cost-control logic | 4 |
-| CSP allows unsafe-inline/unsafe-eval | Medium | XSS mitigation largely nullified | 2 |
+| CSP allows unsafe-inline/unsafe-eval | Medium | XSS mitigation largely nullified | 2 → 4/5 |
 | Three docker-compose files, unclear precedence | Medium | Risk of dev config reaching staging/prod | 0, 5 |
 | Committed chromadb data directory | Low–Medium | Possible data leak if repo made public; repo hygiene | 0 |
 | Container runs as root | Medium | Compounds any RCE with easier lateral movement | 2 |

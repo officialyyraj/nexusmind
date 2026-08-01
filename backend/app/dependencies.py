@@ -12,6 +12,7 @@ from typing import Annotated, Any
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
 
 from app.config import Settings, get_settings
 from app.db.database import async_session_maker
@@ -51,6 +52,19 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 # Type alias for database session
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
+
+
+@lru_cache()
+def get_redis_client() -> Redis:
+    """Get a cached Redis client instance."""
+    # Call get_settings() inside to allow lru_cache to work correctly.
+    # The settings object itself is cached, so this is efficient.
+    settings = get_settings()
+    return Redis.from_url(settings.redis_url, decode_responses=True)
+
+
+# Type alias for Redis client
+RedisClient = Annotated[Redis, Depends(get_redis_client)]
 
 
 @lru_cache()
@@ -301,4 +315,3 @@ def get_production_executor(
     )
 
 ProductionExecutorDep = Annotated[ProductionExecutor, Depends(get_production_executor)]
-

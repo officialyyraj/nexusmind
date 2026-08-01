@@ -144,6 +144,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield
 
+    # Shutdown Redis client
+    try:
+        from app.dependencies import get_redis_client
+        redis_client = get_redis_client()
+        await redis_client.aclose()
+        logger.info("Redis client shutdown complete")
+    except Exception as e:
+        logger.warning(f"Redis client shutdown failed: {e}")
+
     # Shutdown MCP servers
     try:
         from app.mcp import get_mcp_manager
